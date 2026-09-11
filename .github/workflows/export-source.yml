@@ -1,0 +1,27 @@
+name: export-source
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/export-source.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Archive source
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip -qr workspace-environment-vnext-source.zip . -x '.git/*' 'workspace-environment-vnext-source.zip'
+      - name: Upload source artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: workspace-environment-vnext-source
+          path: workspace-environment-vnext-source.zip
+          if-no-files-found: error
