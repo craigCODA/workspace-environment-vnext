@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 
-npm ci --ignore-scripts
+npm install --ignore-scripts
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 npm run vnext:contracts:check
@@ -19,5 +19,14 @@ foreach ($project in @(
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
-node --experimental-strip-types --test packages/creative-sdk/src/**/*.test.ts packages/spatial-runtime/src/**/*.test.ts
+npm test --workspace @workspace/creative-sdk
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+npm test --workspace @workspace/spatial-runtime
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+npm run typecheck --workspace @workspace/creative-sdk
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+npm run typecheck --workspace @workspace/spatial-runtime
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
