@@ -1,0 +1,25 @@
+name: m1-dev
+
+on:
+  push:
+    branches:
+      - m1/runtime-foundation
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Run current M1 development gate
+        shell: pwsh
+        run: ./scripts/m1-dev-verify.ps1
