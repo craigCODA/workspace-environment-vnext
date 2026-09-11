@@ -9,43 +9,56 @@ on:
 
 permissions:
   contents: read
-  actions: read
 
 jobs:
   export:
     runs-on: ubuntu-24.04
-    env:
-      GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Download already-successful offline runtime artifact
+      - name: Checkout M1 branch
+        uses: actions/checkout@v4
+        with:
+          ref: m1/runtime-foundation
+
+      - name: Use .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.425'
+
+      - name: Restore NuGet dependency tree
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p /tmp/runtime-source /tmp/runtime-parts
-          gh api /repos/${GITHUB_REPOSITORY}/actions/artifacts/10282636480/zip > /tmp/runtime-source/artifact.zip
-          unzip -q /tmp/runtime-source/artifact.zip -d /tmp/runtime-source/unpacked
-          test -f /tmp/runtime-source/unpacked/workspace-local-test-runtime.tar.gz
-          split -b 400000000 -d -a 2 /tmp/runtime-source/unpacked/workspace-local-test-runtime.tar.gz /tmp/runtime-parts/part-
-          ls -lh /tmp/runtime-parts
+          dotnet restore Workspace.VNext.sln
 
-      - name: Upload runtime part 00
+      - name: Pack compact .NET 8 SDK/runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="${DOTNET_ROOT:-/usr/share/dotnet}"
+          OUT=/tmp/dotnet8
+          mkdir -p "$OUT/host/fxr" "$OUT/sdk" "$OUT/shared/Microsoft.NETCore.App" "$OUT/shared/Microsoft.AspNetCore.App" "$OUT/packs"
+          cp "$ROOT/dotnet" "$OUT/dotnet"
+          cp -a "$ROOT/host/fxr"/8.* "$OUT/host/fxr/"
+          cp -a "$ROOT/sdk/8.0.425" "$OUT/sdk/"
+          cp -a "$ROOT/shared/Microsoft.NETCore.App"/8.* "$OUT/shared/Microsoft.NETCore.App/"
+          cp -a "$ROOT/shared/Microsoft.AspNetCore.App"/8.* "$OUT/shared/Microsoft.AspNetCore.App/"
+          for pack in Microsoft.NETCore.App.Host.linux-x64 Microsoft.NETCore.App.Ref Microsoft.AspNetCore.App.Ref NETStandard.Library.Ref; do
+            if [ -d "$ROOT/packs/$pack" ]; then
+              mkdir -p "$OUT/packs/$pack"
+              find "$ROOT/packs/$pack" -mindepth 1 -maxdepth 1 -type d \( -name '8.*' -o -name '2.*' \) -exec cp -a {} "$OUT/packs/$pack/" \;
+            fi
+          done
+          if [ -d "$ROOT/sdk-manifests/8.0.100" ]; then
+            mkdir -p "$OUT/sdk-manifests"
+            cp -a "$ROOT/sdk-manifests/8.0.100" "$OUT/sdk-manifests/"
+          fi
+          "$OUT/dotnet" --info
+          tar -C /tmp -cf /tmp/dotnet8.tar dotnet8
+
+      - name: Upload compact .NET 8 runtime
         uses: actions/upload-artifact@v4
-        with: { name: workspace-runtime-part-00, path: /tmp/runtime-parts/part-00, compression-level: 0, retention-days: 1, if-no-files-found: error }
-      - name: Upload runtime part 01
-        uses: actions/upload-artifact@v4
-        with: { name: workspace-runtime-part-01, path: /tmp/runtime-parts/part-01, compression-level: 0, retention-days: 1, if-no-files-found: error }
-      - name: Upload runtime part 02
-        uses: actions/upload-artifact@v4
-        with: { name: workspace-runtime-part-02, path: /tmp/runtime-parts/part-02, compression-level: 0, retention-days: 1, if-no-files-found: error }
-      - name: Upload runtime part 03
-        uses: actions/upload-artifact@v4
-        with: { name: workspace-runtime-part-03, path: /tmp/runtime-parts/part-03, compression-level: 0, retention-days: 1, if-no-files-found: error }
-      - name: Upload runtime part 04
-        uses: actions/upload-artifact@v4
-        with: { name: workspace-runtime-part-04, path: /tmp/runtime-parts/part-04, compression-level: 0, retention-days: 1, if-no-files-found: error }
-      - name: Upload runtime part 05
-        uses: actions/upload-artifact@v4
-        with: { name: workspace-runtime-part-05, path: /tmp/runtime-parts/part-05, compression-level: 0, retention-days: 1, if-no-files-found: error }
-      - name: Upload runtime part 06
-        uses: actions/upload-artifact@v4
-        with: { name: workspace-runtime-part-06, path: /tmp/runtime-parts/part-06, compression-level: 0, retention-days: 1, if-no-files-found: error }
+        with:
+          name: workspace-local-dotnet8-compact
+          path: /tmp/dotnet8.tar
+          compression-level: 0
+          retention-days: 1
