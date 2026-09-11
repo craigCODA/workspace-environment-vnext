@@ -18,3 +18,6 @@ foreach ($project in @(
   dotnet test $project --configuration Release --no-build
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
+
+node --experimental-strip-types --test packages/creative-sdk/src/**/*.test.ts packages/spatial-runtime/src/**/*.test.ts
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
