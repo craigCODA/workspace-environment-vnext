@@ -1,0 +1,28 @@
+name: apply-m1-patch
+
+on:
+  push:
+    branches: ['m1/runtime-foundation']
+    paths:
+      - '.github/patches/pending.patch'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply staged patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "CraigCODA"
+          git config user.email "mistercraigr@gmail.com"
+          git apply --index .github/patches/pending.patch
+          git rm .github/patches/pending.patch
+          git commit -m "chore(vnext): apply staged M1 changes"
+          git push origin HEAD:m1/runtime-foundation
