@@ -34,8 +34,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -f Workspace.VNext.sln
-          dotnet new sln -n Workspace.VNext
+          rm -f Workspace.VNext.sln Workspace.VNext.slnx
+          dotnet new sln -n Workspace.VNext --format sln
           dotnet sln Workspace.VNext.sln add \
             src/Workspace.Contracts/Workspace.Contracts.csproj \
             src/Workspace.Core/Workspace.Core.csproj \
