@@ -10,6 +10,11 @@ public static class WorldCommandNames
     public const string ParametersPatch = "parameters.patch";
     public const string RelationshipsAdd = "relationships.add";
     public const string RelationshipsRemove = "relationships.remove";
+    public const string InstanceDuplicate = "instance.duplicate";
+    public const string ParametersCopy = "parameters.copy";
+    public const string PackageActivate = "package.activate";
+    public const string PackageDisable = "package.disable";
+    public const string PackageRollback = "package.rollback";
     public const string HistoryUndo = "history.undo";
     public const string HistoryRedo = "history.redo";
 }

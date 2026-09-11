@@ -30,6 +30,9 @@ public sealed class WorldEngine
         if (command is HistoryRedoCommand)
             return await RedoAsync(context, cancellationToken);
 
+        if (IsTrustedLifecycleCommand(command) && !context.Trusted)
+            return CommandResult.Reject(_current, "forbidden_trusted_command");
+
         var built = command switch
         {
             EntityCreateCommand c => BuildCreate(c),
@@ -40,6 +43,11 @@ public sealed class WorldEngine
             ParametersPatchCommand c => BuildParameters(c),
             RelationshipAddCommand c => BuildRelationshipAdd(c),
             RelationshipRemoveCommand c => BuildRelationshipRemove(c),
+            InstanceDuplicateCommand c => BuildDuplicate(c),
+            ParametersCopyCommand c => BuildParametersCopy(c),
+            PackageActivateCommand c => BuildPackageActivate(c),
+            PackageDisableCommand c => BuildPackageDisable(c),
+            PackageRollbackCommand c => BuildPackageRollback(c),
             _ => Built.Reject("unsupported_command"),
         };
 
@@ -62,6 +70,9 @@ public sealed class WorldEngine
         return CommandResult.Accept(_current, history?.OperationId);
     }
 
+    private static bool IsTrustedLifecycleCommand(WorldCommand command) => command is
+        InstanceDuplicateCommand or ParametersCopyCommand or PackageActivateCommand or PackageDisableCommand or PackageRollbackCommand;
+
     private Built BuildTransform(TransformSetCommand command)
     {
         if (!TryEntity(command.EntityId, command.Expected, out var entity, out var error)) return Built.Reject(error!);
@@ -76,7 +87,7 @@ public sealed class WorldEngine
     private Built BuildParameters(ParametersPatchCommand command)
     {
         if (!TryEntity(command.EntityId, command.Expected, out var entity, out var error)) return Built.Reject(error!);
-        var parameters = entity!.Parameters.ToDictionary(k => k.Key, v => v.Value.Clone(), StringComparer.Ordinal);
+        var parameters = CloneParameters(entity!.Parameters).ToDictionary(k => k.Key, v => v.Value, StringComparer.Ordinal);
         foreach (var (key, value) in command.Patch) parameters[key] = value.Clone();
         var after = entity with
         {
@@ -168,6 +179,96 @@ public sealed class WorldEngine
         var relationships = entity!.Relationships.Where(r => r.Type != command.Type || r.TargetId != command.TargetId).ToArray();
         var after = entity with { Relationships = relationships, Revisions = entity.Revisions.Increment(RevisionPlane.Relationships) };
         return Replace(entity, after, RevisionPlane.Relationships);
+    }
+
+    private Built BuildDuplicate(InstanceDuplicateCommand command)
+    {
+        if (!TryEntity(command.SourceEntityId, command.Expected, out var source, out var error)) return Built.Reject(error!);
+        if (_current.Entities.ContainsKey(command.NewEntityId)) return Built.Reject("entity_exists");
+
+        var binding = source!.PackageBinding is null
+            ? null
+            : source.PackageBinding with { GenerationToken = $"generation:{Guid.NewGuid():N}" };
+        var copy = source with
+        {
+            Id = command.NewEntityId,
+            Name = $"{source.Name} Copy",
+            Parameters = CloneParameters(source.Parameters),
+            Relationships = source.Relationships.ToArray(),
+            PackageBinding = binding,
+            Revisions = RevisionVector.Zero,
+        };
+        var map = CopyEntities();
+        map[copy.Id] = copy;
+        return new Built(map, new[] { new HistoryPatch(copy.Id, null, copy, Array.Empty<RevisionPlane>()) }, null);
+    }
+
+    private Built BuildParametersCopy(ParametersCopyCommand command)
+    {
+        if (!_current.Entities.TryGetValue(command.SourceEntityId, out var source)) return Built.Reject("entity_not_found");
+        var map = CopyEntities();
+        var patches = new List<HistoryPatch>();
+
+        foreach (var targetId in command.TargetEntityIds.Distinct(StringComparer.Ordinal))
+        {
+            if (!map.TryGetValue(targetId, out var target)) return Built.Reject("entity_not_found");
+            if (source.PackageBinding?.PackageId != target.PackageBinding?.PackageId) return Built.Reject("incompatible_parameters");
+            var parameters = CloneParameters(target.Parameters).ToDictionary(k => k.Key, v => v.Value, StringComparer.Ordinal);
+            foreach (var parameterId in command.ParameterIds.Distinct(StringComparer.Ordinal))
+            {
+                if (!source.Parameters.TryGetValue(parameterId, out var value)) return Built.Reject("parameter_not_found");
+                parameters[parameterId] = value.Clone();
+            }
+            var after = target with
+            {
+                Parameters = parameters,
+                Revisions = target.Revisions.Increment(RevisionPlane.Parameters),
+            };
+            map[targetId] = after;
+            patches.Add(new HistoryPatch(targetId, target, after, new[] { RevisionPlane.Parameters }));
+        }
+
+        return new Built(map, patches, null);
+    }
+
+    private Built BuildPackageActivate(PackageActivateCommand command)
+    {
+        if (!TryEntity(command.EntityId, command.Expected, out var entity, out var error)) return Built.Reject(error!);
+        var after = entity! with
+        {
+            PackageBinding = new PackageBinding(command.PackageId, command.RevisionDigest, command.GenerationToken, true),
+            Revisions = entity.Revisions.Increment(RevisionPlane.Implementation),
+        };
+        return Replace(entity, after, RevisionPlane.Implementation);
+    }
+
+    private Built BuildPackageDisable(PackageDisableCommand command)
+    {
+        if (!TryEntity(command.EntityId, command.Expected, out var entity, out var error)) return Built.Reject(error!);
+        if (entity!.PackageBinding is null) return Built.Reject("package_not_bound");
+        var after = entity with
+        {
+            PackageBinding = entity.PackageBinding with { Active = false },
+            Revisions = entity.Revisions.Increment(RevisionPlane.Implementation),
+        };
+        return Replace(entity, after, RevisionPlane.Implementation);
+    }
+
+    private Built BuildPackageRollback(PackageRollbackCommand command)
+    {
+        if (!TryEntity(command.EntityId, command.Expected, out var entity, out var error)) return Built.Reject(error!);
+        if (entity!.PackageBinding is null) return Built.Reject("package_not_bound");
+        var after = entity with
+        {
+            PackageBinding = entity.PackageBinding with
+            {
+                RevisionDigest = command.RevisionDigest,
+                GenerationToken = command.GenerationToken,
+                Active = true,
+            },
+            Revisions = entity.Revisions.Increment(RevisionPlane.Implementation),
+        };
+        return Replace(entity, after, RevisionPlane.Implementation);
     }
 
     private Built Replace(WorldEntity before, WorldEntity after, params RevisionPlane[] planes)
