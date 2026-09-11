@@ -28,6 +28,20 @@ jobs:
           dotnet-version: '8.0.x'
       - name: Materialize Task 1 source
         run: node scripts/m1-task1-bootstrap.mjs
+      - name: Keep generated C# DTOs type-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('scripts/generate-vnext-contracts.mjs')
+          s = p.read_text()
+          old = "'--lang', 'csharp', '--framework'"
+          new = "'--lang', 'csharp', '--just-types', '--framework'"
+          if old not in s:
+              raise SystemExit('expected quicktype C# invocation not found')
+          p.write_text(s.replace(old, new))
+          PY
       - name: Install dependencies without package lifecycle scripts
         run: npm install --ignore-scripts
       - name: Create vNext solution
