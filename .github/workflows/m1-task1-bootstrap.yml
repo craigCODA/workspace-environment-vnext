@@ -1,0 +1,63 @@
+name: m1-task1-bootstrap
+
+on:
+  push:
+    branches:
+      - m1/runtime-foundation
+    paths:
+      - 'scripts/m1-task1-bootstrap.mjs'
+      - '.github/workflows/m1-task1-bootstrap.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: m1/runtime-foundation
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Materialize Task 1 source
+        run: node scripts/m1-task1-bootstrap.mjs
+      - name: Install dependencies without package lifecycle scripts
+        run: npm install --ignore-scripts
+      - name: Create vNext solution
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f Workspace.VNext.sln
+          dotnet new sln -n Workspace.VNext
+          dotnet sln Workspace.VNext.sln add \
+            src/Workspace.Contracts/Workspace.Contracts.csproj \
+            src/Workspace.Core/Workspace.Core.csproj \
+            src/Workspace.Runtime/Workspace.Runtime.csproj \
+            src/Workspace.Storage/Workspace.Storage.csproj \
+            apps/host/Workspace.Host.csproj \
+            tests/Workspace.Core.Tests/Workspace.Core.Tests.csproj \
+            tests/Workspace.Runtime.Tests/Workspace.Runtime.Tests.csproj \
+            tests/Workspace.Storage.Tests/Workspace.Storage.Tests.csproj \
+            tests/Workspace.Host.Tests/Workspace.Host.Tests.csproj
+      - name: Generate contracts
+        run: npm run vnext:contracts
+      - name: Verify contracts
+        run: npm run vnext:contracts:check
+      - name: Build vNext solution
+        run: dotnet build Workspace.VNext.sln --configuration Release
+      - name: Commit green Task 1
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "CraigCODA"
+          git config user.email "mistercraigr@gmail.com"
+          git add Workspace.VNext.sln contracts scripts/generate-vnext-contracts.mjs scripts/m1-dev-verify.ps1 package.json package-lock.json packages/contracts src/Workspace.Contracts src/Workspace.Core src/Workspace.Runtime src/Workspace.Storage apps/host apps/spatial tests
+          git commit -m "build(vnext): establish contracts and project boundaries"
+          git push origin HEAD:m1/runtime-foundation
