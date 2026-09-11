@@ -1,13 +1,19 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import type { CreativeResourceUpdate } from '@workspace/creative-sdk';
 import { GuestSupervisor } from './GuestSupervisor.ts';
 
 class FakePrepared {
   readonly initialDescriptors = [];
+  readonly generationToken: string;
   disposed = false;
-  constructor(readonly generationToken: string) {}
-  tick() { return []; }
-  dispose() { this.disposed = true; }
+
+  constructor(generationToken: string) {
+    this.generationToken = generationToken;
+  }
+
+  tick(): CreativeResourceUpdate[] { return []; }
+  dispose(): void { this.disposed = true; }
 }
 
 test('late retired generation messages are dropped', async () => {
