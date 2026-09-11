@@ -1,0 +1,26 @@
+name: export-m1-source
+
+on:
+  push:
+    branches: ['m1/runtime-foundation']
+    paths:
+      - '.github/workflows/export-m1-source.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Archive source
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip -qr workspace-environment-vnext-m1-source.zip . -x '.git/*' 'workspace-environment-vnext-m1-source.zip'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: workspace-environment-vnext-m1-source
+          path: workspace-environment-vnext-m1-source.zip
+          if-no-files-found: error
