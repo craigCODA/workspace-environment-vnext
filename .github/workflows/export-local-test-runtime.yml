@@ -33,7 +33,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npm ci
+          npm install --ignore-scripts
           dotnet restore Workspace.VNext.sln
 
       - name: Pack offline local verification runtime
@@ -48,6 +48,7 @@ jobs:
           cp -a "$DOTNET_ROOT_PATH"/. /tmp/workspace-local-runtime/dotnet/
           cp -a "$HOME/.nuget/packages"/. /tmp/workspace-local-runtime/nuget/
           cp -a node_modules /tmp/workspace-local-runtime/node_modules
+          cp -a package-lock.json /tmp/workspace-local-runtime/package-lock.json
           printf '%s\n' "$(node --version)" > /tmp/workspace-local-runtime/NODE_VERSION
           printf '%s\n' "$(dotnet --version)" > /tmp/workspace-local-runtime/DOTNET_VERSION
           tar -C /tmp/workspace-local-runtime -czf /tmp/workspace-local-test-runtime.tar.gz .
