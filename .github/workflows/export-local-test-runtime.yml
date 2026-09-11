@@ -19,22 +19,21 @@ jobs:
         with:
           node-version: '24.20.0'
 
-      - name: Fetch Playwright Test 1.63.0 without browsers
+      - name: Populate exact Playwright npm cache
         shell: bash
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
         run: |
           set -euo pipefail
-          mkdir -p /tmp/pw
-          cd /tmp/pw
-          npm init -y >/dev/null
-          npm install --ignore-scripts --no-audit --no-fund @playwright/test@1.63.0
-          tar -czf /tmp/playwright-node-modules.tar.gz node_modules package-lock.json package.json
+          npm cache add @playwright/test@1.63.0
+          npm cache add playwright@1.63.0
+          npm cache add playwright-core@1.63.0
+          tar -C "$HOME" -czf /tmp/playwright-npm-cache.tar.gz .npm
 
-      - name: Upload Playwright dependency bundle
+      - name: Upload Playwright npm cache
         uses: actions/upload-artifact@v4
         with:
-          name: workspace-local-playwright-1-63
-          path: /tmp/playwright-node-modules.tar.gz
+          name: workspace-local-playwright-npm-cache
+          path: /tmp/playwright-npm-cache.tar.gz
           compression-level: 0
           retention-days: 1
