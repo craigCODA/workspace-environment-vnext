@@ -24,12 +24,19 @@ export interface ProjectionOwner {
 
 export class ThreeResourceProjector {
   readonly #registry = new ResourceRegistry<ProjectedResource>((resource) => resource.dispose());
+  readonly scene: THREE.Group;
+  readonly assets: AssetResolver;
+  readonly roots: EntityRootRegistry;
 
   constructor(
-    readonly scene: THREE.Group,
-    readonly assets: AssetResolver,
-    readonly roots: EntityRootRegistry = new EntityRootRegistry(),
-  ) {}
+    scene: THREE.Group,
+    assets: AssetResolver,
+    roots: EntityRootRegistry = new EntityRootRegistry(),
+  ) {
+    this.scene = scene;
+    this.assets = assets;
+    this.roots = roots;
+  }
 
   async applyBatch(owner: ProjectionOwner, batch: readonly CreativeResourceDescriptor[]): Promise<void> {
     const root = this.roots.createRoot({
