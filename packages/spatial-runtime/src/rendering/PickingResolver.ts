@@ -9,7 +9,11 @@ export interface SemanticPick {
 }
 
 export class PickingResolver {
-  constructor(readonly roots: EntityRootRegistry) {}
+  readonly roots: EntityRootRegistry;
+
+  constructor(roots: EntityRootRegistry) {
+    this.roots = roots;
+  }
 
   resolve(object: THREE.Object3D): SemanticPick | undefined {
     const metadata = this.roots.metadataFor(object);
