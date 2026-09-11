@@ -13,11 +13,9 @@ const ajv = new Ajv({ allErrors: true, strict: false });
 const compiled = ajv.compile(schema as object);
 const assetPattern = /^asset:sha256:[0-9a-f]{64}$/;
 
-export interface ValidationResult<T> {
-  readonly ok: boolean;
-  readonly value?: T;
-  readonly errors?: readonly string[];
-}
+export type ValidationResult<T> =
+  | { readonly ok: true; readonly value: T }
+  | { readonly ok: false; readonly errors: readonly string[] };
 
 export function validateDescriptor(value: unknown): ValidationResult<CreativeResourceDescriptor | CreativeResourceUpdate> {
   if (!compiled(value)) {
