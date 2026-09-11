@@ -19,21 +19,21 @@ jobs:
         with:
           node-version: '24.20.0'
 
-      - name: Populate exact Playwright npm cache
+      - name: Install Playwright Chromium 1.63.0
         shell: bash
-        env:
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
         run: |
           set -euo pipefail
-          npm cache add @playwright/test@1.63.0
-          npm cache add playwright@1.63.0
-          npm cache add playwright-core@1.63.0
-          tar -C "$HOME" -czf /tmp/playwright-npm-cache.tar.gz .npm
+          mkdir -p /tmp/pw
+          cd /tmp/pw
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund @playwright/test@1.63.0
+          npx playwright install chromium
+          tar -C "$HOME/.cache" -czf /tmp/playwright-chromium-1.63.tar.gz ms-playwright
 
-      - name: Upload Playwright npm cache
+      - name: Upload pinned Chromium
         uses: actions/upload-artifact@v4
         with:
-          name: workspace-local-playwright-npm-cache
-          path: /tmp/playwright-npm-cache.tar.gz
+          name: workspace-local-playwright-chromium-1-63
+          path: /tmp/playwright-chromium-1.63.tar.gz
           compression-level: 0
           retention-days: 1
