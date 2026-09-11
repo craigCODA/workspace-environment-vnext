@@ -1,0 +1,18 @@
+{
+  "name": "@workspace/creative-runtime",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "test": "node --experimental-strip-types --test src/**/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@workspace/creative-sdk": "*",
+    "@workspace/spatial-runtime": "*",
+    "quickjs-emscripten-core": "0.32.0",
+    "@jitl/quickjs-singlefile-browser-release-sync": "0.32.0",
+    "@jitl/quickjs-singlefile-mjs-release-sync": "0.32.0"
+  }
+}

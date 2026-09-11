@@ -19,14 +19,9 @@ foreach ($project in @(
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
-npm test --workspace @workspace/creative-sdk
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-npm test --workspace @workspace/spatial-runtime
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-npm run typecheck --workspace @workspace/creative-sdk
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-npm run typecheck --workspace @workspace/spatial-runtime
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+foreach ($workspace in @('@workspace/creative-sdk', '@workspace/spatial-runtime', '@workspace/creative-runtime')) {
+  npm test --workspace $workspace
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  npm run typecheck --workspace $workspace
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
