@@ -9,56 +9,34 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   export:
     runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Checkout M1 branch
-        uses: actions/checkout@v4
-        with:
-          ref: m1/runtime-foundation
-
-      - name: Use .NET 8
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.425'
-
-      - name: Restore NuGet dependency tree
+      - name: Download compact .NET runtime artifact
         shell: bash
         run: |
           set -euo pipefail
-          dotnet restore Workspace.VNext.sln
+          mkdir -p /tmp/source /tmp/parts
+          gh api /repos/${GITHUB_REPOSITORY}/actions/artifacts/10283593968/zip > /tmp/source/artifact.zip
+          unzip -q /tmp/source/artifact.zip -d /tmp/source/unpacked
+          test -f /tmp/source/unpacked/dotnet8.tar
+          split -b 400000000 -d -a 2 /tmp/source/unpacked/dotnet8.tar /tmp/parts/part-
+          test -f /tmp/parts/part-00
+          test -f /tmp/parts/part-01
+          test -f /tmp/parts/part-02
+          ls -lh /tmp/parts
 
-      - name: Pack compact .NET 8 SDK/runtime
-        shell: bash
-        run: |
-          set -euo pipefail
-          ROOT="${DOTNET_ROOT:-/usr/share/dotnet}"
-          OUT=/tmp/dotnet8
-          mkdir -p "$OUT/host/fxr" "$OUT/sdk" "$OUT/shared/Microsoft.NETCore.App" "$OUT/shared/Microsoft.AspNetCore.App" "$OUT/packs"
-          cp "$ROOT/dotnet" "$OUT/dotnet"
-          cp -a "$ROOT/host/fxr"/8.* "$OUT/host/fxr/"
-          cp -a "$ROOT/sdk/8.0.425" "$OUT/sdk/"
-          cp -a "$ROOT/shared/Microsoft.NETCore.App"/8.* "$OUT/shared/Microsoft.NETCore.App/"
-          cp -a "$ROOT/shared/Microsoft.AspNetCore.App"/8.* "$OUT/shared/Microsoft.AspNetCore.App/"
-          for pack in Microsoft.NETCore.App.Host.linux-x64 Microsoft.NETCore.App.Ref Microsoft.AspNetCore.App.Ref NETStandard.Library.Ref; do
-            if [ -d "$ROOT/packs/$pack" ]; then
-              mkdir -p "$OUT/packs/$pack"
-              find "$ROOT/packs/$pack" -mindepth 1 -maxdepth 1 -type d \( -name '8.*' -o -name '2.*' \) -exec cp -a {} "$OUT/packs/$pack/" \;
-            fi
-          done
-          if [ -d "$ROOT/sdk-manifests/8.0.100" ]; then
-            mkdir -p "$OUT/sdk-manifests"
-            cp -a "$ROOT/sdk-manifests/8.0.100" "$OUT/sdk-manifests/"
-          fi
-          "$OUT/dotnet" --info
-          tar -C /tmp -cf /tmp/dotnet8.tar dotnet8
-
-      - name: Upload compact .NET 8 runtime
+      - name: Upload .NET part 00
         uses: actions/upload-artifact@v4
-        with:
-          name: workspace-local-dotnet8-compact
-          path: /tmp/dotnet8.tar
-          compression-level: 0
-          retention-days: 1
+        with: { name: workspace-dotnet8-part-00, path: /tmp/parts/part-00, compression-level: 0, retention-days: 1, if-no-files-found: error }
+      - name: Upload .NET part 01
+        uses: actions/upload-artifact@v4
+        with: { name: workspace-dotnet8-part-01, path: /tmp/parts/part-01, compression-level: 0, retention-days: 1, if-no-files-found: error }
+      - name: Upload .NET part 02
+        uses: actions/upload-artifact@v4
+        with: { name: workspace-dotnet8-part-02, path: /tmp/parts/part-02, compression-level: 0, retention-days: 1, if-no-files-found: error }
