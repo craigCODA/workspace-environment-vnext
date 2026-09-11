@@ -1,1 +1,1 @@
-verify Task 8 hot-swap runtime baseline
+verify Task 9 direct spatial manipulation baseline
