@@ -9,82 +9,43 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   export:
     runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Checkout M1 branch
-        uses: actions/checkout@v4
-        with:
-          ref: m1/runtime-foundation
-
-      - name: Use Node 24
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24.20.0'
-
-      - name: Use .NET 8
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.425'
-
-      - name: Populate dependency caches
+      - name: Download already-successful offline runtime artifact
         shell: bash
         run: |
           set -euo pipefail
-          npm install --ignore-scripts
-          dotnet restore Workspace.VNext.sln
+          mkdir -p /tmp/runtime-source /tmp/runtime-parts
+          gh api /repos/${GITHUB_REPOSITORY}/actions/artifacts/10282636480/zip > /tmp/runtime-source/artifact.zip
+          unzip -q /tmp/runtime-source/artifact.zip -d /tmp/runtime-source/unpacked
+          test -f /tmp/runtime-source/unpacked/workspace-local-test-runtime.tar.gz
+          split -b 400000000 -d -a 2 /tmp/runtime-source/unpacked/workspace-local-test-runtime.tar.gz /tmp/runtime-parts/part-
+          ls -lh /tmp/runtime-parts
 
-      - name: Pack compact offline runtime and caches
-        shell: bash
-        run: |
-          set -euo pipefail
-          NODE_BIN="$(readlink -f "$(command -v node)")"
-          NODE_ROOT="$(dirname "$(dirname "$NODE_BIN")")"
-          DOTNET_ROOT_PATH="${DOTNET_ROOT:-/usr/share/dotnet}"
-          mkdir -p /tmp/workspace-local-runtime
-          tar -C "$NODE_ROOT" -czf /tmp/workspace-local-runtime/node24.tar.gz .
-          tar -C "$DOTNET_ROOT_PATH" -czf /tmp/workspace-local-runtime/dotnet8.tar.gz .
-          tar -C "$HOME/.nuget/packages" -czf /tmp/workspace-local-runtime/nuget-cache.tar.gz .
-          tar -C "$HOME/.npm" -czf /tmp/workspace-local-runtime/npm-cache.tar.gz .
-          cp package-lock.json /tmp/workspace-local-runtime/package-lock.json
-          printf '%s\n' "$(node --version)" > /tmp/workspace-local-runtime/NODE_VERSION
-          printf '%s\n' "$(dotnet --version)" > /tmp/workspace-local-runtime/DOTNET_VERSION
-          ls -lh /tmp/workspace-local-runtime
-
-      - name: Upload Node runtime
+      - name: Upload runtime part 00
         uses: actions/upload-artifact@v4
-        with:
-          name: workspace-local-node24-cache
-          path: /tmp/workspace-local-runtime/node24.tar.gz
-          compression-level: 0
-          retention-days: 1
-
-      - name: Upload .NET runtime
+        with: { name: workspace-runtime-part-00, path: /tmp/runtime-parts/part-00, compression-level: 0, retention-days: 1, if-no-files-found: error }
+      - name: Upload runtime part 01
         uses: actions/upload-artifact@v4
-        with:
-          name: workspace-local-dotnet8-cache
-          path: /tmp/workspace-local-runtime/dotnet8.tar.gz
-          compression-level: 0
-          retention-days: 1
-
-      - name: Upload NuGet cache
+        with: { name: workspace-runtime-part-01, path: /tmp/runtime-parts/part-01, compression-level: 0, retention-days: 1, if-no-files-found: error }
+      - name: Upload runtime part 02
         uses: actions/upload-artifact@v4
-        with:
-          name: workspace-local-nuget-cache
-          path: /tmp/workspace-local-runtime/nuget-cache.tar.gz
-          compression-level: 0
-          retention-days: 1
-
-      - name: Upload npm cache and generated lock
+        with: { name: workspace-runtime-part-02, path: /tmp/runtime-parts/part-02, compression-level: 0, retention-days: 1, if-no-files-found: error }
+      - name: Upload runtime part 03
         uses: actions/upload-artifact@v4
-        with:
-          name: workspace-local-npm-cache
-          path: |
-            /tmp/workspace-local-runtime/npm-cache.tar.gz
-            /tmp/workspace-local-runtime/package-lock.json
-            /tmp/workspace-local-runtime/NODE_VERSION
-            /tmp/workspace-local-runtime/DOTNET_VERSION
-          compression-level: 0
-          retention-days: 1
+        with: { name: workspace-runtime-part-03, path: /tmp/runtime-parts/part-03, compression-level: 0, retention-days: 1, if-no-files-found: error }
+      - name: Upload runtime part 04
+        uses: actions/upload-artifact@v4
+        with: { name: workspace-runtime-part-04, path: /tmp/runtime-parts/part-04, compression-level: 0, retention-days: 1, if-no-files-found: error }
+      - name: Upload runtime part 05
+        uses: actions/upload-artifact@v4
+        with: { name: workspace-runtime-part-05, path: /tmp/runtime-parts/part-05, compression-level: 0, retention-days: 1, if-no-files-found: error }
+      - name: Upload runtime part 06
+        uses: actions/upload-artifact@v4
+        with: { name: workspace-runtime-part-06, path: /tmp/runtime-parts/part-06, compression-level: 0, retention-days: 1, if-no-files-found: error }
