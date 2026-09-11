@@ -3,7 +3,7 @@ import test from 'node:test';
 import { ResourceRegistry } from './ResourceRegistry.ts';
 
 test('resource ids are scoped to generation ownership', () => {
-  const registry = new ResourceRegistry<object>();
+  const registry = new ResourceRegistry<{ owner: string }>();
   registry.set('generation:a', 'mesh', { owner: 'a' });
   assert.equal(registry.get('generation:a', 'mesh')?.owner, 'a');
   assert.equal(registry.get('generation:b', 'mesh'), undefined);
