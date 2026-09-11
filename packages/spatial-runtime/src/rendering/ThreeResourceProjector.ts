@@ -8,12 +8,18 @@ import type {
 import type { AssetResolver } from '../assets/AssetResolver.ts';
 import { validateDescriptor } from '../descriptors/DescriptorValidator.ts';
 import { EntityRootRegistry } from './EntityRootRegistry.ts';
-import { ResourceRegistry } from './ResourceRegistry.ts';
+import { ResourceRegistry, type ResourceRegistrySnapshot } from './ResourceRegistry.ts';
 
 interface ProjectedResource {
   readonly value: THREE.Object3D | THREE.Material | THREE.Texture | THREE.BufferGeometry;
   readonly object?: THREE.Object3D;
   dispose(): void;
+}
+
+interface StagedImplementation {
+  readonly entityId: string;
+  readonly implementationRevision: number;
+  readonly group: THREE.Group;
 }
 
 export interface ProjectionOwner {
@@ -22,8 +28,15 @@ export interface ProjectionOwner {
   readonly implementationRevision?: number;
 }
 
+export interface ProjectorSnapshot extends ResourceRegistrySnapshot {
+  readonly stagedGroups: number;
+  readonly activeEntities: number;
+}
+
 export class ThreeResourceProjector {
   readonly #registry = new ResourceRegistry<ProjectedResource>((resource) => resource.dispose());
+  readonly #stagedByGeneration = new Map<string, StagedImplementation>();
+  readonly #activeByEntity = new Map<string, string>();
   readonly scene: THREE.Group;
   readonly assets: AssetResolver;
   readonly roots: EntityRootRegistry;
@@ -38,36 +51,71 @@ export class ThreeResourceProjector {
     this.roots = roots;
   }
 
-  async applyBatch(owner: ProjectionOwner, batch: readonly CreativeResourceDescriptor[]): Promise<void> {
+  async stageBatch(owner: ProjectionOwner, batch: readonly CreativeResourceDescriptor[]): Promise<THREE.Group> {
+    if (this.#stagedByGeneration.has(owner.generationToken)) this.retireGeneration(owner.generationToken);
+
+    const implementation = new THREE.Group();
+    implementation.name = `workspace-implementation:${owner.generationToken}`;
+    this.#stagedByGeneration.set(owner.generationToken, {
+      entityId: owner.entityId,
+      implementationRevision: owner.implementationRevision ?? 0,
+      group: implementation,
+    });
+
+    try {
+      for (const descriptor of batch) {
+        const validation = validateDescriptor(descriptor);
+        if (!validation.ok) throw new Error(`invalid_descriptor:${validation.errors.join(';')}`);
+        const projected = await this.#project(owner.generationToken, descriptor);
+        this.#registry.set(owner.generationToken, descriptor.id, projected);
+        if (projected.object && !projected.object.parent) implementation.add(projected.object);
+      }
+
+      for (const descriptor of batch) {
+        if (descriptor.kind !== 'group') continue;
+        const group = this.#registry.get(owner.generationToken, descriptor.id)?.object;
+        if (!(group instanceof THREE.Group)) continue;
+        for (const childId of descriptor.children) {
+          const child = this.#registry.get(owner.generationToken, childId)?.object;
+          if (child && child !== group) group.add(child);
+        }
+      }
+      return implementation;
+    } catch (error) {
+      this.retireGeneration(owner.generationToken);
+      throw error;
+    }
+  }
+
+  activateGeneration(owner: ProjectionOwner): string | undefined {
+    const staged = this.#stagedByGeneration.get(owner.generationToken);
+    if (!staged || staged.entityId !== owner.entityId) throw new Error('staged_generation_not_found');
+
     const root = this.roots.createRoot({
       entityId: owner.entityId,
       generationToken: owner.generationToken,
-      implementationRevision: owner.implementationRevision ?? 0,
+      implementationRevision: owner.implementationRevision ?? staged.implementationRevision,
     });
     if (!root.parent) this.scene.add(root);
 
-    for (const descriptor of batch) {
-      const validation = validateDescriptor(descriptor);
-      if (!validation.ok) throw new Error(`invalid_descriptor:${validation.errors?.join(';') ?? 'unknown'}`);
-      const projected = await this.#project(owner.generationToken, descriptor);
-      this.#registry.set(owner.generationToken, descriptor.id, projected);
-      if (projected.object && !projected.object.parent) root.add(projected.object);
+    const previous = this.#activeByEntity.get(owner.entityId);
+    if (previous && previous !== owner.generationToken) {
+      this.#stagedByGeneration.get(previous)?.group.removeFromParent();
     }
+    if (staged.group.parent !== root) root.add(staged.group);
+    this.#activeByEntity.set(owner.entityId, owner.generationToken);
+    return previous;
+  }
 
-    for (const descriptor of batch) {
-      if (descriptor.kind !== 'group') continue;
-      const group = this.#registry.get(owner.generationToken, descriptor.id)?.object;
-      if (!(group instanceof THREE.Group)) continue;
-      for (const childId of descriptor.children) {
-        const child = this.#registry.get(owner.generationToken, childId)?.object;
-        if (child && child !== group) group.add(child);
-      }
-    }
+  async applyBatch(owner: ProjectionOwner, batch: readonly CreativeResourceDescriptor[]): Promise<void> {
+    await this.stageBatch(owner, batch);
+    const previous = this.activateGeneration(owner);
+    if (previous && previous !== owner.generationToken) this.retireGeneration(previous);
   }
 
   applyUpdate(owner: ProjectionOwner, update: CreativeResourceUpdate): void {
     const validation = validateDescriptor(update);
-    if (!validation.ok) throw new Error(`invalid_update:${validation.errors?.join(';') ?? 'unknown'}`);
+    if (!validation.ok) throw new Error(`invalid_update:${validation.errors.join(';')}`);
     const resource = this.#registry.get(owner.generationToken, update.id);
     if (!resource) throw new Error('resource_not_owned');
     const patch = update.patch;
@@ -87,7 +135,24 @@ export class ThreeResourceProjector {
 
   retireGeneration(generationToken: string): void {
     this.#registry.retireGeneration(generationToken);
-    this.roots.retireGeneration(generationToken);
+    const staged = this.#stagedByGeneration.get(generationToken);
+    staged?.group.removeFromParent();
+    this.#stagedByGeneration.delete(generationToken);
+    if (staged && this.#activeByEntity.get(staged.entityId) === generationToken) {
+      this.#activeByEntity.delete(staged.entityId);
+    }
+  }
+
+  activeGeneration(entityId: string): string | undefined {
+    return this.#activeByEntity.get(entityId);
+  }
+
+  snapshotCounts(): ProjectorSnapshot {
+    return {
+      ...this.#registry.snapshotCounts(),
+      stagedGroups: this.#stagedByGeneration.size,
+      activeEntities: this.#activeByEntity.size,
+    };
   }
 
   getResource(generationToken: string, id: string): unknown {

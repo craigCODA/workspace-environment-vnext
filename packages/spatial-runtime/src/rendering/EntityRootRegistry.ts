@@ -24,6 +24,10 @@ export class EntityRootRegistry {
     return root;
   }
 
+  rootForEntity(entityId: string): THREE.Group | undefined {
+    return this.#rootsByEntity.get(entityId);
+  }
+
   metadataFor(object: THREE.Object3D): EntityRootMetadata | undefined {
     let cursor: THREE.Object3D | null = object;
     while (cursor) {

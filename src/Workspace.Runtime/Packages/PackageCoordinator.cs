@@ -42,6 +42,7 @@ public sealed class PackageCoordinator
         var normalizedSource = request.Source.Replace("\r\n", "\n", StringComparison.Ordinal);
         var candidate = new PackageCandidate(
             $"candidate:{Guid.NewGuid():N}",
+            request.EntityId,
             request.PackageId,
             digest,
             generation,

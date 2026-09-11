@@ -2,6 +2,7 @@ namespace Workspace.Core.Ports;
 
 public sealed record PackageCandidate(
     string CandidateId,
+    string EntityId,
     string PackageId,
     string RevisionDigest,
     string GenerationToken,

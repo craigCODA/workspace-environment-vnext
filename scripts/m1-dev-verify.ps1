@@ -19,9 +19,19 @@ foreach ($project in @(
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
-foreach ($workspace in @('@workspace/creative-sdk', '@workspace/spatial-runtime', '@workspace/creative-runtime')) {
+foreach ($workspace in @('@workspace/creative-sdk', '@workspace/spatial-runtime', '@workspace/creative-runtime', '@workspace/vnext-spatial')) {
   npm test --workspace $workspace
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   npm run typecheck --workspace $workspace
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
+
+
+npm run build --workspace @workspace/vnext-spatial
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+$browserExternals = Get-ChildItem 'apps/spatial/dist' -Recurse -File | Where-Object { $_.Name -like '__vite-browser-external*' }
+if ($browserExternals) {
+  Write-Error 'vNext spatial browser bundle contains a Node builtin external shim'
+  exit 1
 }

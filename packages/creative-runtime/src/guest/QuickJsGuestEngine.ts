@@ -1,5 +1,4 @@
 import { newQuickJSWASMModuleFromVariant } from 'quickjs-emscripten-core';
-import nodeVariant from '@jitl/quickjs-singlefile-mjs-release-sync';
 import type { CreativeResourceDescriptor, CreativeResourceUpdate, JsonValue } from '@workspace/creative-sdk';
 import { validateDescriptor } from '@workspace/spatial-runtime';
 import type { GuestBudget, PreparedGuest } from './GuestProtocol.ts';
@@ -31,7 +30,9 @@ export class QuickJsGuestEngine {
   }
 
   static async createForNodeTests(budget: GuestBudget): Promise<QuickJsGuestEngine> {
-    const module = await newQuickJSWASMModuleFromVariant(nodeVariant);
+    const nodeVariantSpecifier = '@jitl/quickjs-singlefile-mjs-release-sync';
+    const imported = await import(/* @vite-ignore */ nodeVariantSpecifier);
+    const module = await newQuickJSWASMModuleFromVariant(imported.default);
     return new QuickJsGuestEngine(module, budget);
   }
 

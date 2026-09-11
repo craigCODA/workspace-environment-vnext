@@ -1,3 +1,8 @@
+export interface ResourceRegistrySnapshot {
+  readonly generations: number;
+  readonly resources: number;
+}
+
 export class ResourceRegistry<T> {
   readonly #byGeneration = new Map<string, Map<string, T>>();
   readonly #dispose?: (resource: T) => void;
@@ -38,5 +43,11 @@ export class ResourceRegistry<T> {
     if (!resources) return;
     if (this.#dispose) for (const resource of resources.values()) this.#dispose(resource);
     this.#byGeneration.delete(generationToken);
+  }
+
+  snapshotCounts(): ResourceRegistrySnapshot {
+    let resources = 0;
+    for (const generation of this.#byGeneration.values()) resources += generation.size;
+    return { generations: this.#byGeneration.size, resources };
   }
 }

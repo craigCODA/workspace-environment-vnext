@@ -4,8 +4,19 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test",
+    "test": "node --experimental-strip-types --test src/**/*.test.ts",
     "typecheck": "tsc --noEmit",
     "build": "vite build"
+  },
+  "dependencies": {
+    "@workspace/creative-runtime": "*",
+    "@workspace/creative-sdk": "*",
+    "@workspace/spatial-runtime": "*",
+    "@workspace/vnext-contracts": "*",
+    "three": "0.185.1"
+  },
+  "devDependencies": {
+    "@types/three": "0.185.4",
+    "vite": "8.2.2"
   }
 }
