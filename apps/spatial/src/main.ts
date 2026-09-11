@@ -1,8 +1,17 @@
 import * as THREE from 'three';
 import { GuestSupervisor, QuickJsGuestEngine } from '@workspace/creative-runtime';
-import { MemoryAssetResolver, ThreeResourceProjector } from '@workspace/spatial-runtime';
+import { MemoryAssetResolver, PickingResolver, ThreeResourceProjector } from '@workspace/spatial-runtime';
 import { HostConnection } from './host/HostConnection.ts';
+import { InteractionController, type EditGateway } from './interaction/InteractionController.ts';
 import { RuntimeCoordinator } from './runtime/RuntimeCoordinator.ts';
+
+
+export function createTrustedInteraction(projector: ThreeResourceProjector, gateway: EditGateway) {
+  return {
+    controller: new InteractionController(projector.roots, gateway),
+    picking: new PickingResolver(projector.roots),
+  };
+}
 
 const app = document.querySelector<HTMLElement>('#app');
 if (!app) throw new Error('app_root_missing');
