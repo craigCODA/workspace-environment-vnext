@@ -1,0 +1,7 @@
+{
+  "type": "command.request",
+  "protocolVersion": 1,
+  "requestId": "fixture-save",
+  "command": "workspace.save",
+  "payload": {}
+}

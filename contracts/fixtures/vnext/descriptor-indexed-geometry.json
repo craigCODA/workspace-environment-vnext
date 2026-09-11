@@ -1,0 +1,30 @@
+{
+  "kind": "indexedGeometry",
+  "id": "geo:1",
+  "positions": [
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    1,
+    0
+  ],
+  "indices": [
+    0,
+    1,
+    2
+  ],
+  "attributes": {
+    "heat": {
+      "itemSize": 1,
+      "values": [
+        0,
+        0.5,
+        1
+      ]
+    }
+  }
+}

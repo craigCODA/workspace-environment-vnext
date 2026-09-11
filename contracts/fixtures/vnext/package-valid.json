@@ -1,0 +1,14 @@
+{
+  "packageId": "pkg:valid",
+  "name": "Valid",
+  "stateSchemaVersion": 1,
+  "entry": "index.js",
+  "requestedCapabilities": [],
+  "assets": [
+    {
+      "handle": "asset:sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "mediaType": "image/raw-rgba"
+    }
+  ]
+}

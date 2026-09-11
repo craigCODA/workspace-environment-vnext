@@ -1,0 +1,363 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CreativeResource",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "points",
+        "color"
+      ],
+      "properties": {
+        "kind": {
+          "const": "line"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "points": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}$"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "positions",
+        "indices"
+      ],
+      "properties": {
+        "kind": {
+          "const": "indexedGeometry"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "positions": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "indices": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "attributes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "itemSize",
+              "values"
+            ],
+            "properties": {
+              "itemSize": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 4
+              },
+              "values": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "points",
+        "color"
+      ],
+      "properties": {
+        "kind": {
+          "const": "curve"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "points": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}$"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "vertexShader",
+        "fragmentShader"
+      ],
+      "properties": {
+        "kind": {
+          "const": "shaderMaterial"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "vertexShader": {
+          "type": "string"
+        },
+        "fragmentShader": {
+          "type": "string"
+        },
+        "uniforms": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "assetHandle"
+      ],
+      "properties": {
+        "kind": {
+          "const": "texture"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "assetHandle": {
+          "type": "string",
+          "pattern": "^asset:sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "lightType",
+        "color",
+        "intensity"
+      ],
+      "properties": {
+        "kind": {
+          "const": "light"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lightType": {
+          "enum": [
+            "ambient",
+            "directional",
+            "point"
+          ]
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}$"
+        },
+        "intensity": {
+          "type": "number"
+        },
+        "position": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "positions",
+        "color",
+        "size"
+      ],
+      "properties": {
+        "kind": {
+          "const": "points"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "positions": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}$"
+        },
+        "size": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "geometryId",
+        "materialId",
+        "transforms"
+      ],
+      "properties": {
+        "kind": {
+          "const": "instanced"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "geometryId": {
+          "type": "string"
+        },
+        "materialId": {
+          "type": "string"
+        },
+        "transforms": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "minItems": 16,
+            "maxItems": 16,
+            "items": {
+              "type": "number"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "children"
+      ],
+      "properties": {
+        "kind": {
+          "const": "group"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "position": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "number"
+          }
+        },
+        "rotation": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "number"
+          }
+        },
+        "scale": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "patch"
+      ],
+      "properties": {
+        "kind": {
+          "const": "update"
+        },
+        "id": {
+          "type": "string"
+        },
+        "patch": {
+          "type": "object"
+        }
+      }
+    }
+  ]
+}

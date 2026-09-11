@@ -1,0 +1,8 @@
+{
+  "packageId": "pkg:forbidden-three",
+  "name": "Forbidden Three",
+  "stateSchemaVersion": 1,
+  "entry": "index.js",
+  "requestedCapabilities": [],
+  "assets": []
+}

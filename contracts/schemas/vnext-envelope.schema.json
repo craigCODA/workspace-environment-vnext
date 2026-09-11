@@ -1,0 +1,284 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "VNextEnvelope",
+  "oneOf": [
+    {
+      "$ref": "#/definitions/CommandRequest"
+    },
+    {
+      "$ref": "#/definitions/CommandResultEnvelope"
+    },
+    {
+      "$ref": "#/definitions/RuntimePrepare"
+    },
+    {
+      "$ref": "#/definitions/RuntimePrepared"
+    },
+    {
+      "$ref": "#/definitions/RuntimeActivate"
+    },
+    {
+      "$ref": "#/definitions/RuntimeRetire"
+    },
+    {
+      "$ref": "#/definitions/RuntimeFailed"
+    }
+  ],
+  "definitions": {
+    "CommandName": {
+      "type": "string",
+      "enum": [
+        "world.read",
+        "entity.inspect",
+        "package.inspect",
+        "capability.inspect",
+        "entity.create",
+        "entity.remove",
+        "entity.rename",
+        "entity.reparent",
+        "transform.set",
+        "parameters.patch",
+        "relationships.add",
+        "relationships.remove",
+        "reference.grant",
+        "reference.revoke",
+        "constraint.add",
+        "constraint.remove",
+        "edit.begin",
+        "edit.update",
+        "edit.commit",
+        "edit.cancel",
+        "history.undo",
+        "history.redo",
+        "workspace.save",
+        "instance.duplicate",
+        "parameters.copy",
+        "package.fork",
+        "package.publish",
+        "package.activate",
+        "package.disable",
+        "package.rollback",
+        "package.delete",
+        "package.state.patch",
+        "workspace.import",
+        "workspace.export",
+        "application.search",
+        "application.open",
+        "window.focus",
+        "surface.bindWindow",
+        "application.profile.save",
+        "application.profile.delete",
+        "application.close",
+        "application.restart"
+      ]
+    },
+    "CommandRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "protocolVersion",
+        "requestId",
+        "command",
+        "payload"
+      ],
+      "properties": {
+        "type": {
+          "const": "command.request"
+        },
+        "protocolVersion": {
+          "const": 1
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "command": {
+          "$ref": "#/definitions/CommandName"
+        },
+        "payload": {
+          "type": "object"
+        }
+      }
+    },
+    "CommandResultEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "protocolVersion",
+        "requestId",
+        "accepted"
+      ],
+      "properties": {
+        "type": {
+          "const": "command.result"
+        },
+        "protocolVersion": {
+          "const": 1
+        },
+        "requestId": {
+          "type": "string"
+        },
+        "accepted": {
+          "type": "boolean"
+        },
+        "errorCode": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "payload": {
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      }
+    },
+    "RuntimePrepare": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "protocolVersion",
+        "candidateId",
+        "entityId",
+        "generationToken",
+        "source",
+        "manifestJson"
+      ],
+      "properties": {
+        "type": {
+          "const": "runtime.prepare"
+        },
+        "protocolVersion": {
+          "const": 1
+        },
+        "candidateId": {
+          "type": "string"
+        },
+        "entityId": {
+          "type": "string"
+        },
+        "generationToken": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "manifestJson": {
+          "type": "string"
+        }
+      }
+    },
+    "RuntimePrepared": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "protocolVersion",
+        "candidateId",
+        "generationToken"
+      ],
+      "properties": {
+        "type": {
+          "const": "runtime.prepared"
+        },
+        "protocolVersion": {
+          "const": 1
+        },
+        "candidateId": {
+          "type": "string"
+        },
+        "generationToken": {
+          "type": "string"
+        }
+      }
+    },
+    "RuntimeActivate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "protocolVersion",
+        "entityId",
+        "revisionDigest",
+        "generationToken"
+      ],
+      "properties": {
+        "type": {
+          "const": "runtime.activate"
+        },
+        "protocolVersion": {
+          "const": 1
+        },
+        "entityId": {
+          "type": "string"
+        },
+        "revisionDigest": {
+          "type": "string"
+        },
+        "generationToken": {
+          "type": "string"
+        }
+      }
+    },
+    "RuntimeRetire": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "protocolVersion",
+        "generationToken"
+      ],
+      "properties": {
+        "type": {
+          "const": "runtime.retire"
+        },
+        "protocolVersion": {
+          "const": 1
+        },
+        "generationToken": {
+          "type": "string"
+        }
+      }
+    },
+    "RuntimeFailed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "protocolVersion",
+        "candidateId",
+        "generationToken",
+        "errorCode"
+      ],
+      "properties": {
+        "type": {
+          "const": "runtime.failed"
+        },
+        "protocolVersion": {
+          "const": 1
+        },
+        "candidateId": {
+          "type": "string"
+        },
+        "generationToken": {
+          "type": "string"
+        },
+        "errorCode": {
+          "type": "string"
+        },
+        "message": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

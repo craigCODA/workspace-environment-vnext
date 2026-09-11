@@ -1,0 +1,27 @@
+{
+  "type": "command.request",
+  "protocolVersion": 1,
+  "requestId": "fixture-transform",
+  "command": "transform.set",
+  "payload": {
+    "entityId": "entity:box",
+    "transform": {
+      "position": [
+        1,
+        2,
+        3
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ]
+    }
+  }
+}

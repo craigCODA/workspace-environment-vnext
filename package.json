@@ -7,7 +7,8 @@
   "main": "apps/desktop-shell/main.cjs",
   "workspaces": [
     "apps/spatial-client",
-    "packages/*"
+    "packages/*",
+    "apps/spatial"
   ],
   "scripts": {
     "postinstall": "node scripts/ensure-electron.mjs",
@@ -21,13 +22,20 @@
     "native:test": "dotnet test apps/desktop-native/tests/Workspace.Desktop.Core.Tests/Workspace.Desktop.Core.Tests.csproj --configuration Release",
     "native:build": "npm run build --workspace @workspace/spatial-client && dotnet build apps/desktop-native/Workspace.Desktop.sln --configuration Release --property:Platform=x64",
     "native:stage": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-native-desktop.ps1 -Configuration Release",
-    "native:install": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-native-preview.ps1"
+    "native:install": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-native-preview.ps1",
+    "vnext:contracts": "node scripts/generate-vnext-contracts.mjs",
+    "vnext:contracts:check": "node scripts/check-vnext-contracts.mjs",
+    "vnext:test:dotnet": "dotnet test Workspace.VNext.sln --configuration Release",
+    "vnext:test:node": "npm test --workspace @workspace/vnext-contracts --workspace @workspace/creative-sdk --workspace @workspace/creative-runtime --workspace @workspace/spatial-runtime --workspace @workspace/vnext-spatial",
+    "vnext:typecheck": "npm run typecheck --workspace @workspace/vnext-contracts --workspace @workspace/creative-sdk --workspace @workspace/creative-runtime --workspace @workspace/spatial-runtime --workspace @workspace/vnext-spatial",
+    "vnext:build": "npm run build --workspace @workspace/vnext-spatial && dotnet build Workspace.VNext.sln --configuration Release"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
     "electron": "^44.3.0",
     "electron-builder": "^26.15.3",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "quicktype": "26.0.0"
   },
   "build": {
     "appId": "com.nerdlife.workspaceenvironment",

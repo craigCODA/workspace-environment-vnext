@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "WorldPackage",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "packageId",
+    "name",
+    "stateSchemaVersion",
+    "entry",
+    "requestedCapabilities",
+    "assets"
+  ],
+  "properties": {
+    "packageId": {
+      "type": "string",
+      "pattern": "^pkg:[A-Za-z0-9._-]+$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "stateSchemaVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "entry": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._/-]+\\.js$"
+    },
+    "requestedCapabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "handle",
+          "digest",
+          "mediaType"
+        ],
+        "properties": {
+          "handle": {
+            "type": "string",
+            "pattern": "^asset:sha256:[0-9a-f]{64}$"
+          },
+          "digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "mediaType": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "lineageParentPackageId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}
