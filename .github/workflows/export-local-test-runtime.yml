@@ -36,27 +36,54 @@ jobs:
           npm install --ignore-scripts
           dotnet restore Workspace.VNext.sln
 
-      - name: Pack offline local verification runtime
+      - name: Pack offline runtime components without compression
         shell: bash
         run: |
           set -euo pipefail
           NODE_BIN="$(readlink -f "$(command -v node)")"
           NODE_ROOT="$(dirname "$(dirname "$NODE_BIN")")"
           DOTNET_ROOT_PATH="${DOTNET_ROOT:-/usr/share/dotnet}"
-          mkdir -p /tmp/workspace-local-runtime/node /tmp/workspace-local-runtime/dotnet /tmp/workspace-local-runtime/nuget
-          cp -a "$NODE_ROOT"/. /tmp/workspace-local-runtime/node/
-          cp -a "$DOTNET_ROOT_PATH"/. /tmp/workspace-local-runtime/dotnet/
-          cp -a "$HOME/.nuget/packages"/. /tmp/workspace-local-runtime/nuget/
-          cp -a node_modules /tmp/workspace-local-runtime/node_modules
-          cp -a package-lock.json /tmp/workspace-local-runtime/package-lock.json
+          mkdir -p /tmp/workspace-local-runtime
+          tar -C "$NODE_ROOT" -cf /tmp/workspace-local-runtime/node.tar .
+          tar -C "$DOTNET_ROOT_PATH" -cf /tmp/workspace-local-runtime/dotnet.tar .
+          tar -C "$HOME/.nuget/packages" -cf /tmp/workspace-local-runtime/nuget.tar .
+          tar -cf /tmp/workspace-local-runtime/node_modules.tar node_modules
+          cp package-lock.json /tmp/workspace-local-runtime/package-lock.json
           printf '%s\n' "$(node --version)" > /tmp/workspace-local-runtime/NODE_VERSION
           printf '%s\n' "$(dotnet --version)" > /tmp/workspace-local-runtime/DOTNET_VERSION
-          tar -C /tmp/workspace-local-runtime -czf /tmp/workspace-local-test-runtime.tar.gz .
 
-      - name: Upload offline runtime
+      - name: Upload Node runtime
         uses: actions/upload-artifact@v4
         with:
-          name: workspace-local-test-runtime
-          path: /tmp/workspace-local-test-runtime.tar.gz
+          name: workspace-local-node24
+          path: /tmp/workspace-local-runtime/node.tar
+          compression-level: 0
+          retention-days: 1
+
+      - name: Upload .NET runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: workspace-local-dotnet8
+          path: /tmp/workspace-local-runtime/dotnet.tar
+          compression-level: 0
+          retention-days: 1
+
+      - name: Upload NuGet cache
+        uses: actions/upload-artifact@v4
+        with:
+          name: workspace-local-nuget
+          path: /tmp/workspace-local-runtime/nuget.tar
+          compression-level: 0
+          retention-days: 1
+
+      - name: Upload Node dependencies and lock
+        uses: actions/upload-artifact@v4
+        with:
+          name: workspace-local-node-modules
+          path: |
+            /tmp/workspace-local-runtime/node_modules.tar
+            /tmp/workspace-local-runtime/package-lock.json
+            /tmp/workspace-local-runtime/NODE_VERSION
+            /tmp/workspace-local-runtime/DOTNET_VERSION
           compression-level: 0
           retention-days: 1
