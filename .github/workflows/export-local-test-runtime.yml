@@ -1,0 +1,61 @@
+name: export-local-test-runtime
+
+on:
+  push:
+    branches:
+      - tooling/local-test-runtime
+    paths:
+      - '.github/workflows/export-local-test-runtime.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout M1 branch
+        uses: actions/checkout@v4
+        with:
+          ref: m1/runtime-foundation
+
+      - name: Use Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.20.0'
+
+      - name: Use .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.425'
+
+      - name: Restore exact dependency trees
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          dotnet restore Workspace.VNext.sln
+
+      - name: Pack offline local verification runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          NODE_BIN="$(readlink -f "$(command -v node)")"
+          NODE_ROOT="$(dirname "$(dirname "$NODE_BIN")")"
+          DOTNET_ROOT_PATH="${DOTNET_ROOT:-/usr/share/dotnet}"
+          mkdir -p /tmp/workspace-local-runtime/node /tmp/workspace-local-runtime/dotnet /tmp/workspace-local-runtime/nuget
+          cp -a "$NODE_ROOT"/. /tmp/workspace-local-runtime/node/
+          cp -a "$DOTNET_ROOT_PATH"/. /tmp/workspace-local-runtime/dotnet/
+          cp -a "$HOME/.nuget/packages"/. /tmp/workspace-local-runtime/nuget/
+          cp -a node_modules /tmp/workspace-local-runtime/node_modules
+          printf '%s\n' "$(node --version)" > /tmp/workspace-local-runtime/NODE_VERSION
+          printf '%s\n' "$(dotnet --version)" > /tmp/workspace-local-runtime/DOTNET_VERSION
+          tar -C /tmp/workspace-local-runtime -czf /tmp/workspace-local-test-runtime.tar.gz .
+
+      - name: Upload offline runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: workspace-local-test-runtime
+          path: /tmp/workspace-local-test-runtime.tar.gz
+          compression-level: 0
+          retention-days: 1
