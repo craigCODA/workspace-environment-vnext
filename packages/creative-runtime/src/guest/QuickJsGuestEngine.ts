@@ -122,7 +122,6 @@ export class QuickJsGuestEngine {
     if (this.#disposed) return;
     for (const guest of [...this.#guests]) guest.dispose();
     this.#guests.clear();
-    this.#module.dispose();
     this.#disposed = true;
   }
 
