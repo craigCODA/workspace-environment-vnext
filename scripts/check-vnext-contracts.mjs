@@ -3,13 +3,22 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
+const canonical = (text) => text.replace(/\r\n/g, '\n');
 const temp = await mkdtemp(path.join(tmpdir(), 'workspace-contracts-'));
+
 try {
   const result = spawnSync(process.execPath, ['scripts/generate-vnext-contracts.mjs', '--out', temp], {
     cwd: process.cwd(),
     encoding: 'utf8',
   });
-  if (result.status !== 0) throw new Error(result.stderr || result.stdout || 'contract generation failed');
+
+  if (result.error) {
+    throw result.error;
+  }
+
+  if (result.status !== 0) {
+    throw new Error(result.stderr || result.stdout || 'contract generation failed');
+  }
 
   const pairs = [
     ['packages/contracts/src/generated/vnext-envelope.ts', 'ts/vnext-envelope.ts'],
@@ -25,7 +34,10 @@ try {
       readFile(committed, 'utf8'),
       readFile(path.join(temp, generated), 'utf8'),
     ]);
-    if (a !== b) throw new Error(`stale generated contract: ${committed}`);
+
+    if (canonical(a) !== canonical(b)) {
+      throw new Error(`stale generated contract: ${committed}`);
+    }
   }
 } finally {
   await rm(temp, { recursive: true, force: true });
