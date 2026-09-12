@@ -1,0 +1,28 @@
+name: m2a-export
+on:
+  push:
+    branches: ['m2/spatial-workspace-shell']
+    paths: ['.github/workflows/m2a-export.yml']
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Export source and resumable Git history
+        shell: bash
+        run: |
+          mkdir -p /tmp/m2a-export
+          git archive --format=zip --output=/tmp/m2a-export/m2a-source.zip HEAD
+          git bundle create /tmp/m2a-export/m2a-history.bundle HEAD
+          git rev-parse HEAD > /tmp/m2a-export/COMMIT.txt
+          sha256sum /tmp/m2a-export/m2a-source.zip > /tmp/m2a-export/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: m2a-resume-source
+          path: /tmp/m2a-export/
+          retention-days: 14
