@@ -22,8 +22,13 @@ test('A23 ordinary editing is model independent', async ({ page }) => {
   await expect(page.getByTestId('agent-network-calls')).toHaveText('0');
 
   await dragEntity(page, 'entity:box', { x: 120, y: 0 });
+  await expect.poll(async () => (await entityPose(page, 'entity:box'))?.position[0]).not.toBe(0);
+
   await page.getByRole('button', { name: 'Undo' }).click();
+  await expectEntityPose(page, 'entity:box', initialPose);
+
   await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByTestId('save-status')).toHaveText('saved');
   await page.reload();
 
   await expectEntityPose(page, 'entity:box', initialPose);
@@ -44,10 +49,14 @@ async function dragEntity(page: Page, entityId: string, delta: { x: number; y: n
 }
 
 async function expectEntityPose(page: Page, entityId: string, expected: typeof initialPose): Promise<void> {
-  await expect.poll(async () => page.evaluate((id) => {
+  await expect.poll(async () => entityPose(page, entityId)).toEqual(expected);
+}
+
+async function entityPose(page: Page, entityId: string): Promise<typeof initialPose | undefined> {
+  return page.evaluate((id) => {
     const diagnostics = (window as Window & {
       __workspaceDiagnostics?: { snapshot(): { entities: Record<string, { transform: typeof initialPose }> } };
     }).__workspaceDiagnostics;
     return diagnostics?.snapshot().entities[id]?.transform;
-  }, entityId)).toEqual(expected);
+  }, entityId);
 }
