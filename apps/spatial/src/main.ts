@@ -29,6 +29,7 @@ interface WorldEntitySnapshot {
 interface WorldSnapshot {
   readonly worldRevision: number;
   readonly entities: Record<string, WorldEntitySnapshot>;
+  readonly activeLeaseCount: number;
 }
 
 interface DragState {
@@ -87,7 +88,7 @@ Object.assign(surface.style, {
 });
 appRoot.append(title, status, controls, surface);
 
-let currentWorld: WorldSnapshot = { worldRevision: 0, entities: {} };
+let currentWorld: WorldSnapshot = { worldRevision: 0, entities: {}, activeLeaseCount: 0 };
 window.__workspaceDiagnostics = Object.freeze({
   snapshot: () => structuredClone(currentWorld),
 });
@@ -112,12 +113,18 @@ async function startRuntime(): Promise<void> {
   const coordinator = new RuntimeCoordinator(guests, projector);
   const connection = await HostConnection.connect(host, session, coordinator);
 
+  const updateActiveLeaseCount = (value: unknown): void => {
+    if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) return;
+    currentWorld = { ...currentWorld, activeLeaseCount: value };
+  };
+
   const gateway: EditGateway = {
     async begin(entityId, fields, expectedTransformRevision) {
       const response = await connection.command('edit.begin', { entityId, fields, expectedTransformRevision });
       if (!response.accepted) throw new Error(response.errorCode ?? 'edit_begin_rejected');
       const leaseId = response.payload?.leaseId;
       if (typeof leaseId !== 'string' || leaseId.length === 0) throw new Error('edit_lease_missing');
+      updateActiveLeaseCount(response.payload?.activeLeaseCount);
       return { leaseId };
     },
     async commit(leaseId, transform) {
@@ -127,6 +134,7 @@ async function startRuntime(): Promise<void> {
     async cancel(leaseId) {
       const response = await connection.command('edit.cancel', { leaseId });
       if (!response.accepted) throw new Error(response.errorCode ?? 'edit_cancel_rejected');
+      updateActiveLeaseCount(response.payload?.activeLeaseCount);
     },
   };
   const { controller } = createTrustedInteraction(projector, gateway);
@@ -271,7 +279,11 @@ function syncHandle(handle: HTMLElement, transform: TransformContract): void {
 
 function worldFrom(response: HostCommandResponse): WorldSnapshot {
   const payload = response.payload;
-  if (!payload || typeof payload.worldRevision !== 'number' || typeof payload.entities !== 'object' || payload.entities === null) {
+  if (!payload
+    || typeof payload.worldRevision !== 'number'
+    || typeof payload.entities !== 'object'
+    || payload.entities === null
+    || typeof payload.activeLeaseCount !== 'number') {
     throw new Error('world_payload_invalid');
   }
   return payload as unknown as WorldSnapshot;
