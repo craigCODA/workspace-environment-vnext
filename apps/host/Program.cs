@@ -43,14 +43,15 @@ if (options.Acceptance && initial.Entities.Count == 0)
     }, 0);
     await store.PersistAcceptedAsync(initial, null, CancellationToken.None);
 }
-if (options.M2A) initial = await M2AWorld.SeedAsync(initial, store, packageRevisions, CancellationToken.None);
+var brickTemplate = options.M2A ? await M2AWorld.LoadBrickTemplateAsync(packageRevisions, CancellationToken.None) : null;
+if (options.M2A) initial = await M2AWorld.SeedAsync(initial, store, packageRevisions, CancellationToken.None, brickTemplate);
 IApplicationPlatform platform = new UnavailableApplicationPlatform();
 #if WINDOWS
 if (options.M2A) platform = new Workspace.Windows.WindowsApplicationPlatform(options.ParentProcessId);
 #endif
 await using var applications = options.M2A ? new ApplicationSurfaceService(platform) : null;
 var engine = new WorldEngine(initial, store);
-var commands = new WorkspaceCommandService(engine, store) { Applications = applications };
+var commands = new WorkspaceCommandService(engine, store) { Applications = applications, M2ABrickTemplate = brickTemplate };
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls($"http://127.0.0.1:{options.Port}");

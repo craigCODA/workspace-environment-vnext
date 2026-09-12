@@ -21,7 +21,7 @@
 
 `src/Workspace.Runtime/Applications/`: platform port DTOs, selector matching, bounded session/capture services.
 `src/Workspace.Windows/`: WGC and Win32 adapters plus a Windows-only project.
-`apps/host/Workspace.Host.Windows.csproj`: Windows composition sharing host source without altering the cross-platform M1 target.
+`apps/host-windows-vnext/Workspace.Host.Windows.csproj`: Windows composition sharing host source without altering the cross-platform M1 target.
 `apps/host/Protocol/WorkspaceCommandService.M2A.cs`: additive trusted world/selector commands.
 `apps/host/M2A/`: seeding, platform endpoints and composition helpers.
 `apps/spatial/workspace.html`, `src/workspace/`: product renderer, navigation, object manipulation, app surface streaming, UI.
@@ -69,11 +69,11 @@ Assert.False(leases.Allows(otherSession, surfaceId, leaseId));
 
 Consumes host world/command contracts and the existing QuickJS/projector runtime. Produces `workspace.html`, `WorkspaceScene`, `Navigation`, `WorkspaceClient` and `WorkspaceUI`.
 
-- [ ] Add failing viewport/coordinate/input-ownership tests and browser launch assertion.
-- [ ] Implement full-window rendering with resize and pixel-ratio handling, neutral room, WASD/camera capture, and trusted UI.
-- [ ] Prepare the reviewed brick through QuickJS; apply accepted root transforms. Move/scale/rotate/tint through normal host commands, with pointer previews and one commit per drag.
-- [ ] Implement cancellation, undo/redo, save status and visible missing-session/startup errors.
-- [ ] Run typecheck, tests and Chromium world acceptance; inspect a rendered screenshot before commit.
+- [x] Add failing viewport/coordinate/input-ownership tests and browser launch assertion.
+- [x] Implement full-window rendering with resize and pixel-ratio handling, neutral room, WASD/camera capture, and trusted UI.
+- [x] Prepare the reviewed brick through QuickJS; apply accepted root transforms. Move/scale/rotate/tint through normal host commands, with pointer previews and one commit per drag.
+- [x] Implement cancellation, undo/redo, save status and visible missing-session/startup errors.
+- [x] Run typecheck, tests and Chromium world acceptance; inspect a rendered screenshot before commit.
 
 Required browser assertions:
 ```ts
@@ -117,3 +117,9 @@ assert.equal(options.webPreferences.sandbox, true);
 - [ ] Test denied control, unavailable platform, stale/ambiguous window reconnect, visible startup failure and renderer recovery.
 - [ ] Run Windows compile/CI and inspect exact artifacts; never report installed-app/game compatibility from headless or mock evidence.
 - [ ] Write `m2a-acceptance.md`, README launch instructions and remaining hardware gates. Publish source/artifact with exact revision, leaving main/M1 untouched.
+
+## 2026-09-12 room checkpoint
+
+Task 3 is implemented and locally verified. The earlier host/Windows-adapter checkpoint is preserved; its Windows compilation and .NET regression job passed. The checked Task 3 items do not close M2A. Tasks 4 and 5 remain unimplemented in this checkpoint, and Task 6 remains open. In particular, this is a full-viewport browser room, not the approved borderless full-screen desktop shell, and its screen is not a live Windows capture.
+
+See `docs/architecture/vnext/m2a-room-checkpoint.md` for the exact evidence boundary.

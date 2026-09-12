@@ -25,15 +25,20 @@ public static class M2AWorld
         };
     }
 
-    public static async Task<WorldState> SeedAsync(WorldState initial, IWorldStore store, IPackageRevisionStore revisions, CancellationToken token)
+    public static async Task<PackageBinding> LoadBrickTemplateAsync(IPackageRevisionStore revisions, CancellationToken token)
     {
-        if (initial.Entities.Count != 0) return initial;
         var directory = FindFixtureDirectory();
         var manifest = await File.ReadAllTextAsync(Path.Combine(directory, "manifest.json"), token);
         var source = (await File.ReadAllTextAsync(Path.Combine(directory, "index.js"), token)).Replace("\r\n", "\n", StringComparison.Ordinal);
         var digest = PackageDigest.Compute(manifest, source);
         await revisions.StagePackageRevisionAsync(new PackageRevisionArtifact("pkg:m2a-brick", digest, manifest, source), token);
-        var binding = new PackageBinding("pkg:m2a-brick", digest, $"generation:{Guid.NewGuid():N}", true);
+        return new PackageBinding("pkg:m2a-brick", digest, $"generation:{Guid.NewGuid():N}", true);
+    }
+
+    public static async Task<WorldState> SeedAsync(WorldState initial, IWorldStore store, IPackageRevisionStore revisions, CancellationToken token, PackageBinding? template = null)
+    {
+        if (initial.Entities.Count != 0) return initial;
+        var binding = template ?? await LoadBrickTemplateAsync(revisions, token);
         var brick = CreateEntity("m2a.brick", "Brick", new Vec3(0, 0.88, -1.2), binding);
         var surface = CreateEntity("m2a.surface", "Application screen", new Vec3(0, 1.9, -2.7), null);
         var room = WorldEntity.Create($"entity:{Guid.NewGuid():N}", "Workspace room") with

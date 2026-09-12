@@ -9,6 +9,8 @@ namespace Workspace.Host.Protocol;
 
 public sealed partial class WorkspaceCommandService
 {
+    public PackageBinding? M2ABrickTemplate { get; init; }
+
     public ApplicationSurfaceService? Applications { get; init; }
     public WorldState Current => _engine.Current;
 
@@ -54,7 +56,8 @@ public sealed partial class WorkspaceCommandService
         }
         if (Math.Abs(position.X) > 1_000 || Math.Abs(position.Y) > 1_000 || Math.Abs(position.Z) > 1_000)
             return HostCommandDispatchResult.Reject("position_out_of_range");
-        var template = _engine.Current.Entities.Values.FirstOrDefault(e => M2AWorld.Kind(e) == "brick")?.PackageBinding;
+        var template = M2ABrickTemplate ?? _engine.Current.Entities.Values.FirstOrDefault(e => M2AWorld.Kind(e) == "brick")?.PackageBinding;
+        if (templateId == "m2a.brick" && template is null) return HostCommandDispatchResult.Reject("brick_template_unavailable");
         var entity = M2AWorld.CreateEntity(templateId, name, position, template);
         return FromCommandResult(await _engine.ExecuteAsync(new EntityCreateCommand(message.RequestId, entity, EmptyExpected), context, token));
     }
