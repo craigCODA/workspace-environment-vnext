@@ -3,7 +3,7 @@ import test from 'node:test';
 import { hostAssetHandle } from '@workspace/creative-sdk';
 import * as assetModule from './AssetResolver.ts';
 
-test('host asset resolver rejects URL and path locator syntax before fetch', async () => {
+test('A50 descriptor locator cannot induce trusted renderer fetch', async () => {
   assert.equal(typeof assetModule.HostAssetResolver, 'function', 'HostAssetResolver must exist');
   let fetchCalls = 0;
   const resolver = new assetModule.HostAssetResolver!('http://127.0.0.1:43123', 'session-token', async () => {
