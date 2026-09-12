@@ -1,0 +1,23 @@
+name: task11-export-source
+
+on:
+  push:
+    branches: ['task11/execution']
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Export source snapshot
+        shell: bash
+        run: |
+          git archive --format=zip --output=workspace-vnext-task11-source.zip HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: workspace-vnext-task11-source
+          path: workspace-vnext-task11-source.zip
+          if-no-files-found: error
