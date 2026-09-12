@@ -16,6 +16,18 @@ public sealed class SessionAuthenticatorTests
     }
 
     [Fact]
+    public void Acceptance_token_can_reconnect()
+    {
+        var auth = new SessionAuthenticator();
+        auth.RegisterAcceptanceToken("fixed");
+        Assert.True(auth.TryConsume("fixed", out var first));
+        Assert.NotNull(first);
+        Assert.True(auth.TryConsume("fixed", out var second));
+        Assert.NotNull(second);
+        Assert.Equal(first!.SessionId, second!.SessionId);
+    }
+
+    [Fact]
     public void Acceptance_token_requires_explicit_acceptance_mode()
     {
         Assert.Throws<InvalidOperationException>(() => HostRuntimeOptions.Parse(new[] { "--session-token", "fixed" }));
