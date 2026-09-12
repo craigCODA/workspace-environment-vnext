@@ -5,6 +5,7 @@ on:
     branches: ['task10/a23-red']
     paths:
       - '.github/workflows/task10-a23-red.yml'
+      - 'tests/acceptance/**'
 
 permissions:
   contents: read
