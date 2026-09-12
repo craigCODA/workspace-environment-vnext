@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GuestSupervisor, QuickJsGuestEngine } from '@workspace/creative-runtime';
-import { MemoryAssetResolver, PickingResolver, ThreeResourceProjector } from '@workspace/spatial-runtime';
+import { MemoryAssetResolver, PickingResolver, ThreeResourceProjector, type ProjectorSnapshot } from '@workspace/spatial-runtime';
 import { HostConnection, type HostCommandResponse } from './host/HostConnection.ts';
 import { InteractionController, type EditGateway, type TransformContract } from './interaction/InteractionController.ts';
 import { RuntimeCoordinator } from './runtime/RuntimeCoordinator.ts';
@@ -43,8 +43,13 @@ interface DragState {
   latestY: number;
 }
 
+interface WorkspaceDiagnosticSnapshot extends WorldSnapshot {
+  readonly activeGenerationCount: number;
+  readonly resourceCounts: ProjectorSnapshot;
+}
+
 interface WorkspaceDiagnostics {
-  snapshot(): WorldSnapshot;
+  snapshot(): WorkspaceDiagnosticSnapshot;
 }
 
 declare global {
@@ -89,8 +94,19 @@ Object.assign(surface.style, {
 appRoot.append(title, status, controls, surface);
 
 let currentWorld: WorldSnapshot = { worldRevision: 0, activeLeaseCount: 0, entities: {} };
+let diagnosticsCoordinator: RuntimeCoordinator | null = null;
+let diagnosticsProjector: ThreeResourceProjector | null = null;
 window.__workspaceDiagnostics = Object.freeze({
-  snapshot: () => structuredClone(currentWorld),
+  snapshot: (): WorkspaceDiagnosticSnapshot => ({
+    ...structuredClone(currentWorld),
+    activeGenerationCount: diagnosticsCoordinator?.activeGenerationCount() ?? 0,
+    resourceCounts: diagnosticsProjector?.snapshotCounts() ?? {
+      generations: 0,
+      resources: 0,
+      stagedGroups: 0,
+      activeEntities: 0,
+    },
+  }),
 });
 
 void startRuntime();
@@ -111,6 +127,8 @@ async function startRuntime(): Promise<void> {
   const guests = new GuestSupervisor((generationToken, source) => engine.prepare(generationToken, source));
   const projector = new ThreeResourceProjector(new THREE.Group(), new MemoryAssetResolver());
   const coordinator = new RuntimeCoordinator(guests, projector);
+  diagnosticsCoordinator = coordinator;
+  diagnosticsProjector = projector;
   const connection = await HostConnection.connect(host, session, coordinator);
 
   const gateway: EditGateway = {

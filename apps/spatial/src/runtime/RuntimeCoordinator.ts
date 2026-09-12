@@ -64,6 +64,10 @@ export class RuntimeCoordinator {
     return this.#activeByEntity.get(entityId);
   }
 
+  activeGenerationCount(): number {
+    return this.#activeByEntity.size;
+  }
+
   #retireGeneration(generationToken: string): void {
     const candidate = this.#candidates.get(generationToken);
     this.#guests.retireGeneration(generationToken);

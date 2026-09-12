@@ -172,3 +172,23 @@ test('100 activation cycles retire all resources and guest generations', async (
     assert.equal(guests.aliveCount(), 0);
   }
 });
+
+test('active generation count tracks only activated entity generations', async () => {
+  const projector = new ThreeResourceProjector(new THREE.Group(), new MemoryAssetResolver(), new EntityRootRegistry());
+  const guests = new GuestSupervisor(factory);
+  const coordinator = new RuntimeCoordinator(guests, projector);
+
+  assert.equal(coordinator.activeGenerationCount(), 0);
+  await coordinator.prepare({
+    type: 'runtime.prepare', protocolVersion: 1, candidateId: 'candidate:count', entityId: 'entity:count',
+    generationToken: 'generation:count', source: 'A', manifestJson: '{}',
+  });
+  assert.equal(coordinator.activeGenerationCount(), 0, 'prepared candidates are not active');
+  coordinator.activate({
+    type: 'runtime.activate', protocolVersion: 1, entityId: 'entity:count', revisionDigest: 'sha256:count',
+    generationToken: 'generation:count',
+  });
+  assert.equal(coordinator.activeGenerationCount(), 1);
+  coordinator.retire({ type: 'runtime.retire', protocolVersion: 1, generationToken: 'generation:count' });
+  assert.equal(coordinator.activeGenerationCount(), 0);
+});
