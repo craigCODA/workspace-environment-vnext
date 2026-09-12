@@ -23,3 +23,13 @@ test('vNext launcher dry-run targets the M1 host and spatial client', async () =
   assert.match(plan.appUrl, /^http:\/\/127\.0\.0\.1:\d+\/#session=/);
   assert.match(decodeURIComponent(plan.appUrl), /host=ws:\/\/127\.0\.0\.1:\d+\/workspace/);
 });
+
+test('Windows launcher can invoke npm as a child process', async (t) => {
+  if (process.platform !== 'win32') {
+    t.skip('Windows-specific npm subprocess regression');
+    return;
+  }
+
+  const { stdout } = await execFileAsync(process.execPath, ['scripts/run-vnext.mjs', '--npm-probe']);
+  assert.match(stdout, /npm subprocess ok/i);
+});
