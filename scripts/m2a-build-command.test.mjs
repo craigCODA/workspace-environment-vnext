@@ -12,7 +12,7 @@ test('Windows packaging invokes electron-builder through Node rather than a cmd 
     executable: 'C:\\Program Files\\nodejs\\node.exe',
     args: [
       'D:\\repo\\node_modules\\electron-builder\\out\\cli\\cli.js',
-      '--win', 'nsis', '--x64',
+      '--win', 'nsis', '--x64', '--publish', 'never',
     ],
   });
 });
