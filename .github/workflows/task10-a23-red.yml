@@ -4,6 +4,7 @@ on:
   push:
     branches: ['task10/a23-green']
     paths:
+      - '.github/workflows/task10-a23-red.yml'
       - 'apps/host/**'
       - 'apps/spatial/**'
       - 'tests/Workspace.Host.Tests/**'
