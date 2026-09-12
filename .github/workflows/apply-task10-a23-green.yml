@@ -1,10 +1,10 @@
-name: apply-task10-a52-green
+name: apply-task10-diagnostics
 
 on:
   push:
     branches: ['task10/a52-red']
     paths:
-      - '.github/patches/task10-a52-production.patch.gz'
+      - '.github/patches/task10-diagnostics.patch.gz'
 
 permissions:
   contents: write
@@ -16,13 +16,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Apply A52 production patch
+      - name: Apply Task 10 diagnostic patch
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "CraigCODA"
           git config user.email "mistercraigr@gmail.com"
-          gunzip -c .github/patches/task10-a52-production.patch.gz | git apply --index -
-          git rm .github/patches/task10-a52-production.patch.gz
-          git commit -m "fix(vnext): clear abandoned edit leases on disconnect"
+          gunzip -c .github/patches/task10-diagnostics.patch.gz | git apply --index -
+          git rm .github/patches/task10-diagnostics.patch.gz
+          git commit -m "test(vnext): expose read-only Task 10 diagnostics"
           git push origin HEAD:task10/a52-red
