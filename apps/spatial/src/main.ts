@@ -32,6 +32,18 @@ interface WorldSnapshot {
   readonly activeLeaseCount: number;
 }
 
+interface ResourceCounts {
+  readonly generations: number;
+  readonly resources: number;
+  readonly stagedGroups: number;
+  readonly activeEntities: number;
+}
+
+interface DiagnosticsSnapshot extends WorldSnapshot {
+  readonly activeGenerationCount: number;
+  readonly resourceCounts: ResourceCounts;
+}
+
 interface DragState {
   readonly entityId: string;
   readonly pointerId: number;
@@ -44,7 +56,7 @@ interface DragState {
 }
 
 interface WorkspaceDiagnostics {
-  snapshot(): WorldSnapshot;
+  snapshot(): DiagnosticsSnapshot;
 }
 
 declare global {
@@ -88,9 +100,21 @@ Object.assign(surface.style, {
 });
 appRoot.append(title, status, controls, surface);
 
+const emptyResourceCounts: ResourceCounts = Object.freeze({
+  generations: 0,
+  resources: 0,
+  stagedGroups: 0,
+  activeEntities: 0,
+});
 let currentWorld: WorldSnapshot = { worldRevision: 0, entities: {}, activeLeaseCount: 0 };
+let diagnosticCoordinator: RuntimeCoordinator | null = null;
+let diagnosticProjector: ThreeResourceProjector | null = null;
 window.__workspaceDiagnostics = Object.freeze({
-  snapshot: () => structuredClone(currentWorld),
+  snapshot: (): DiagnosticsSnapshot => ({
+    ...structuredClone(currentWorld),
+    activeGenerationCount: diagnosticCoordinator?.activeGenerationCount() ?? 0,
+    resourceCounts: diagnosticProjector?.snapshotCounts() ?? structuredClone(emptyResourceCounts),
+  }),
 });
 
 void startRuntime();
@@ -111,6 +135,8 @@ async function startRuntime(): Promise<void> {
   const guests = new GuestSupervisor((generationToken, source) => engine.prepare(generationToken, source));
   const projector = new ThreeResourceProjector(new THREE.Group(), new MemoryAssetResolver());
   const coordinator = new RuntimeCoordinator(guests, projector);
+  diagnosticProjector = projector;
+  diagnosticCoordinator = coordinator;
   const connection = await HostConnection.connect(host, session, coordinator);
 
   const updateActiveLeaseCount = (value: unknown): void => {
