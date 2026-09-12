@@ -18,5 +18,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Sanity
-        run: echo evidence-recorder-ready
+      - name: Record observed Windows M1 evidence
+        run: python .github/task13-record-evidence.py
+      - name: Commit evidence record
+        shell: bash
+        run: |
+          git config user.name 'CraigCODA'
+          git config user.email 'mistercraigr@gmail.com'
+          git add docs/architecture/vnext/m1-acceptance.md
+          git commit -m 'docs(vnext): record observed M1 Windows acceptance' || exit 0
+          git push origin HEAD:task13/execution
