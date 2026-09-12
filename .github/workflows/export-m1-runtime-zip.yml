@@ -1,0 +1,25 @@
+name: export-m1-runtime-zip
+
+on:
+  push:
+    branches: ['export/m1-runtime-zip-20260912']
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Export exact M1 runtime head
+        run: |
+          git archive --format=zip --output=workspace-environment-vnext-m1-runtime-foundation-3474aa0.zip HEAD^
+      - uses: actions/upload-artifact@v4
+        with:
+          name: workspace-environment-vnext-m1-runtime-foundation-3474aa0
+          path: workspace-environment-vnext-m1-runtime-foundation-3474aa0.zip
+          if-no-files-found: error
+          compression-level: 0
