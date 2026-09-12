@@ -30,8 +30,7 @@ jobs:
               for old, new in manifest.get('transportCorrections', {}).get(name, []):
                   text = text.replace(old, new)
               parts.append(text)
-          data = ''.join(parts)
-          patch = gzip.decompress(base64.b64decode(data, validate=True))
+          patch = gzip.decompress(base64.b64decode(''.join(parts), validate=True))
           assert hashlib.sha256(patch).hexdigest() == manifest['sha256'], 'Patch integrity mismatch'
           pathlib.Path('/tmp/m2a.patch').write_bytes(patch)
           PY
@@ -40,7 +39,7 @@ jobs:
           git rm -r .github/m2a-stage
           git config user.name 'Craig Ramos'
           git config user.email 'mistercraigr@gmail.com'
-          git commit -m 'feat(m2a): apply verified implementation checkpoint'
+          git commit -m 'feat(m2a): add full-viewport room and persistent object controls'
           git push origin HEAD:m2/spatial-workspace-shell
           echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
   windows:
@@ -60,3 +59,45 @@ jobs:
         run: dotnet build apps/host-windows-vnext/Workspace.Host.Windows.csproj --configuration Release
       - name: Existing M1 and new M2A host regressions
         run: dotnet test Workspace.VNext.sln --configuration Release
+  room:
+    needs: apply
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PLATFORM: ''
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.apply.outputs.revision }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.425'
+      - name: Locked dependencies and Chromium
+        run: |
+          npm ci --ignore-scripts
+          npx playwright install --with-deps chromium
+      - name: Contracts, unit tests, types and both spatial entries
+        run: |
+          npm run vnext:contracts:check
+          npm run vnext:test:node
+          npm run vnext:typecheck
+          npm run vnext:build
+          dotnet test Workspace.VNext.sln --configuration Release --no-build
+      - name: M1 and M2A room browser regressions
+        run: |
+          xvfb-run -a node node_modules/@playwright/test/cli.js test --config tests/acceptance/playwright.config.ts --reporter=line
+          xvfb-run -a node node_modules/@playwright/test/cli.js test --config tests/acceptance/playwright.m2a.config.ts --reporter=line
+      - name: Export room checkpoint source
+        run: |
+          mkdir -p /tmp/m2a-room-checkpoint
+          git archive --format=zip --prefix=workspace-environment-m2a-room-checkpoint/ --output=/tmp/m2a-room-checkpoint/m2a-room-source.zip HEAD
+          git rev-parse HEAD > /tmp/m2a-room-checkpoint/COMMIT.txt
+          sha256sum /tmp/m2a-room-checkpoint/m2a-room-source.zip > /tmp/m2a-room-checkpoint/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: m2a-room-checkpoint-source
+          path: /tmp/m2a-room-checkpoint/
+          retention-days: 14
