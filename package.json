@@ -8,7 +8,8 @@
   "workspaces": [
     "apps/spatial-client",
     "packages/*",
-    "apps/spatial"
+    "apps/spatial",
+    "tests/acceptance"
   ],
   "scripts": {
     "postinstall": "node scripts/ensure-electron.mjs",
@@ -28,7 +29,8 @@
     "vnext:test:dotnet": "dotnet test Workspace.VNext.sln --configuration Release",
     "vnext:test:node": "npm test --workspace @workspace/vnext-contracts --workspace @workspace/creative-sdk --workspace @workspace/creative-runtime --workspace @workspace/spatial-runtime --workspace @workspace/vnext-spatial",
     "vnext:typecheck": "npm run typecheck --workspace @workspace/vnext-contracts --workspace @workspace/creative-sdk --workspace @workspace/creative-runtime --workspace @workspace/spatial-runtime --workspace @workspace/vnext-spatial",
-    "vnext:build": "npm run build --workspace @workspace/vnext-spatial && dotnet build Workspace.VNext.sln --configuration Release"
+    "vnext:build": "npm run build --workspace @workspace/vnext-spatial && dotnet build Workspace.VNext.sln --configuration Release",
+    "vnext:test:acceptance": "playwright test --config tests/acceptance/playwright.config.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
