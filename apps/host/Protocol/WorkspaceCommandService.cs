@@ -20,6 +20,28 @@ public sealed class WorkspaceCommandService
         _store = store;
     }
 
+    public int ActiveLeaseCount
+    {
+        get
+        {
+            lock (_leaseGate) return _leases.Count;
+        }
+    }
+
+    public int ReleaseSessionLeases(string sessionId)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId)) return 0;
+        lock (_leaseGate)
+        {
+            var leaseIds = _leases
+                .Where(pair => string.Equals(pair.Value.SessionId, sessionId, StringComparison.Ordinal))
+                .Select(pair => pair.Key)
+                .ToArray();
+            foreach (var leaseId in leaseIds) _leases.Remove(leaseId);
+            return leaseIds.Length;
+        }
+    }
+
     public async ValueTask<HostCommandDispatchResult> DispatchAsync(
         HostCommandMessage message,
         CommandContext context,
@@ -62,7 +84,11 @@ public sealed class WorkspaceCommandService
         lock (_leaseGate)
             _leases.Add(leaseId, new EditLease(leaseId, entityId!, expectedRevision, context.SessionId));
 
-        return HostCommandDispatchResult.Accept(JsonSerializer.SerializeToElement(new { leaseId }, JsonOptions));
+        return HostCommandDispatchResult.Accept(JsonSerializer.SerializeToElement(new
+        {
+            leaseId,
+            activeLeaseCount = ActiveLeaseCount,
+        }, JsonOptions));
     }
 
     private async ValueTask<HostCommandDispatchResult> CommitEditAsync(
@@ -101,12 +127,12 @@ public sealed class WorkspaceCommandService
         lock (_leaseGate)
         {
             if (!_leases.TryGetValue(leaseId!, out var lease))
-                return HostCommandDispatchResult.Accept();
+                return HostCommandDispatchResult.Accept(JsonSerializer.SerializeToElement(new { activeLeaseCount = _leases.Count }, JsonOptions));
             if (!string.Equals(lease.SessionId, context.SessionId, StringComparison.Ordinal))
                 return HostCommandDispatchResult.Reject("edit_lease_session_mismatch");
             _leases.Remove(leaseId!);
         }
-        return HostCommandDispatchResult.Accept();
+        return HostCommandDispatchResult.Accept(JsonSerializer.SerializeToElement(new { activeLeaseCount = ActiveLeaseCount }, JsonOptions));
     }
 
     private async ValueTask<HostCommandDispatchResult> RunHistoryAsync(
@@ -125,11 +151,11 @@ public sealed class WorkspaceCommandService
         return HostCommandDispatchResult.Accept(WorldPayload(_engine.Current));
     }
 
-    private static HostCommandDispatchResult FromCommandResult(CommandResult result) => result.Accepted
+    private HostCommandDispatchResult FromCommandResult(CommandResult result) => result.Accepted
         ? HostCommandDispatchResult.Accept(WorldPayload(result.State))
         : HostCommandDispatchResult.Reject(result.ErrorCode ?? "command_rejected", WorldPayload(result.State));
 
-    private static JsonElement WorldPayload(WorldState state)
+    private JsonElement WorldPayload(WorldState state)
     {
         var entities = state.Entities.ToDictionary(
             pair => pair.Key,
@@ -155,7 +181,12 @@ public sealed class WorkspaceCommandService
             },
             StringComparer.Ordinal);
 
-        return JsonSerializer.SerializeToElement(new { worldRevision = state.WorldRevision, entities }, JsonOptions);
+        return JsonSerializer.SerializeToElement(new
+        {
+            worldRevision = state.WorldRevision,
+            entities,
+            activeLeaseCount = ActiveLeaseCount,
+        }, JsonOptions);
     }
 
     private static bool TryString(JsonElement payload, string name, out string? value)
