@@ -121,6 +121,7 @@ test('A47 breadth package projects all M1 descriptor families and reconstructs o
 
 test('Task10 diagnostics are deterministic and read only', async ({ page }) => {
   await page.goto(state.appUrl);
+  await expect.poll(async () => (await diagnosticSnapshot(page)).activeGenerationCount).toBe(1);
 
   const snapshot = await diagnosticSnapshot(page);
   expect(snapshot.activeLeaseCount).toBe(0);
