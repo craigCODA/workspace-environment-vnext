@@ -11,6 +11,12 @@ type Pose = typeof initialPose;
 
 interface DiagnosticsSnapshot {
   readonly entities: Record<string, { transform: Pose }>;
+  readonly activePackageRevisions?: Record<string, string>;
+  readonly projectedKinds?: readonly string[];
+  readonly activePackageEntityId?: string | null;
+  readonly packagesPaused?: boolean;
+  readonly capabilityGrantCount?: number;
+  readonly rendererStatus?: string;
   readonly activeLeaseCount?: number;
   readonly activeGenerationCount?: number;
   readonly resourceCounts?: {
@@ -72,17 +78,59 @@ test('A52 save during an unfinished drag recovers accepted state without a zombi
   await expect(reopened.getByTestId('agent-network-calls')).toHaveText('0');
 });
 
+
+test('A47 breadth package projects all M1 descriptor families and reconstructs on reload', async ({ page }) => {
+  const webglErrors: string[] = [];
+  const startupErrors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error') startupErrors.push(`console:${message.text()}`);
+    if (message.type() === 'error' && /webgl/i.test(message.text())) webglErrors.push(message.text());
+  });
+  page.on('pageerror', (error) => startupErrors.push(`pageerror:${error.message}`));
+  page.on('requestfailed', (request) => startupErrors.push(`requestfailed:${request.url()}:${request.failure()?.errorText ?? 'unknown'}`));
+
+  await page.goto(state.appUrl);
+  await expect(page.locator('canvas[data-workspace-renderer]')).toBeVisible();
+  await page.waitForTimeout(1500);
+  const startup = await diagnosticSnapshot(page);
+  if (startup.activeGenerationCount !== 1) {
+    const runtime = await page.locator('#app').getAttribute('data-runtime');
+    throw new Error(`task11_startup_failed:${JSON.stringify({ runtime, startup, startupErrors })}`);
+  }
+
+  const before = await diagnosticSnapshot(page);
+  expect(before.activePackageEntityId).toBe('entity:box');
+  expect(before.activePackageRevisions?.['entity:box']).toMatch(/^[0-9a-f]{64}$/);
+  expect([...(before.projectedKinds ?? [])].sort()).toEqual([
+    'curve', 'indexedGeometry', 'instanced', 'light', 'points', 'shaderMaterial', 'texture',
+  ]);
+  expect(before.rendererStatus).toBe('ready');
+  expect(webglErrors).toEqual([]);
+
+  const revision = before.activePackageRevisions?.['entity:box'];
+  await page.reload();
+  await expect.poll(async () => (await diagnosticSnapshot(page)).activeGenerationCount).toBe(1);
+  const after = await diagnosticSnapshot(page);
+  expect(after.activePackageEntityId).toBe('entity:box');
+  expect(after.activePackageRevisions?.['entity:box']).toBe(revision);
+  expect([...(after.projectedKinds ?? [])].sort()).toEqual([
+    'curve', 'indexedGeometry', 'instanced', 'light', 'points', 'shaderMaterial', 'texture',
+  ]);
+  expect(webglErrors).toEqual([]);
+});
+
 test('Task10 diagnostics are deterministic and read only', async ({ page }) => {
   await page.goto(state.appUrl);
+  await expect.poll(async () => (await diagnosticSnapshot(page)).activeGenerationCount).toBe(1);
 
   const snapshot = await diagnosticSnapshot(page);
   expect(snapshot.activeLeaseCount).toBe(0);
-  expect(snapshot.activeGenerationCount).toBe(0);
+  expect(snapshot.activeGenerationCount).toBe(1);
   expect(snapshot.resourceCounts).toEqual({
-    generations: 0,
-    resources: 0,
-    stagedGroups: 0,
-    activeEntities: 0,
+    generations: 1,
+    resources: 8,
+    stagedGroups: 1,
+    activeEntities: 1,
   });
 
   const diagnosticKeys = await page.evaluate(() => Object.keys((window as Window & {

@@ -37,6 +37,7 @@ export class ThreeResourceProjector {
   readonly #registry = new ResourceRegistry<ProjectedResource>((resource) => resource.dispose());
   readonly #stagedByGeneration = new Map<string, StagedImplementation>();
   readonly #activeByEntity = new Map<string, string>();
+  readonly #kindsByGeneration = new Map<string, Set<CreativeResourceDescriptor['kind']>>();
   readonly scene: THREE.Group;
   readonly assets: AssetResolver;
   readonly roots: EntityRootRegistry;
@@ -61,6 +62,7 @@ export class ThreeResourceProjector {
       implementationRevision: owner.implementationRevision ?? 0,
       group: implementation,
     });
+    this.#kindsByGeneration.set(owner.generationToken, new Set());
 
     try {
       for (const descriptor of batch) {
@@ -68,6 +70,7 @@ export class ThreeResourceProjector {
         if (!validation.ok) throw new Error(`invalid_descriptor:${validation.errors.join(';')}`);
         const projected = await this.#project(owner.generationToken, descriptor);
         this.#registry.set(owner.generationToken, descriptor.id, projected);
+        this.#kindsByGeneration.get(owner.generationToken)?.add(descriptor.kind);
         if (projected.object && !projected.object.parent) implementation.add(projected.object);
       }
 
@@ -130,6 +133,17 @@ export class ThreeResourceProjector {
       for (const [key, value] of Object.entries(patch.uniforms as Record<string, JsonValue>)) {
         resource.value.uniforms[key] = { value: cloneUniform(value) };
       }
+      resource.value.uniformsNeedUpdate = true;
+    }
+    if (resource.object instanceof THREE.Points && Array.isArray(patch.positions) && patch.positions.every((value) => typeof value === 'number')) {
+      const position = resource.object.geometry.getAttribute('position');
+      if (position instanceof THREE.BufferAttribute && position.array.length === patch.positions.length) {
+        position.array.set(patch.positions as number[]);
+        position.needsUpdate = true;
+      } else {
+        resource.object.geometry.setAttribute('position', new THREE.Float32BufferAttribute(patch.positions as number[], 3));
+      }
+      resource.object.geometry.computeBoundingSphere();
     }
   }
 
@@ -138,6 +152,7 @@ export class ThreeResourceProjector {
     const staged = this.#stagedByGeneration.get(generationToken);
     staged?.group.removeFromParent();
     this.#stagedByGeneration.delete(generationToken);
+    this.#kindsByGeneration.delete(generationToken);
     if (staged && this.#activeByEntity.get(staged.entityId) === generationToken) {
       this.#activeByEntity.delete(staged.entityId);
     }
@@ -159,6 +174,10 @@ export class ThreeResourceProjector {
     return this.#registry.get(generationToken, id)?.value;
   }
 
+  projectedKinds(generationToken: string): readonly string[] {
+    return [...(this.#kindsByGeneration.get(generationToken) ?? [])].sort();
+  }
+
   async #project(generationToken: string, descriptor: CreativeResourceDescriptor): Promise<ProjectedResource> {
     switch (descriptor.kind) {
       case 'line': {
@@ -176,7 +195,7 @@ export class ThreeResourceProjector {
         }
         const material = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: false });
         const object = new THREE.Mesh(geometry, material);
-        return disposableObject(object, [geometry, material]);
+        return disposableObjectValue(geometry, object, [geometry, material]);
       }
       case 'curve': {
         const points = descriptor.points.map(([x, y, z]) => new THREE.Vector3(x, y, z));
@@ -244,6 +263,21 @@ export class ThreeResourceProjector {
 function disposableObject(object: THREE.Object3D, resources: readonly { dispose(): void }[]): ProjectedResource {
   return {
     value: object,
+    object,
+    dispose() {
+      object.removeFromParent();
+      for (const resource of resources) resource.dispose();
+    },
+  };
+}
+
+function disposableObjectValue(
+  value: THREE.Material | THREE.Texture | THREE.BufferGeometry,
+  object: THREE.Object3D,
+  resources: readonly { dispose(): void }[],
+): ProjectedResource {
+  return {
+    value,
     object,
     dispose() {
       object.removeFromParent();

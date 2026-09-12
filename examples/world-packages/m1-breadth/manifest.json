@@ -1,0 +1,14 @@
+{
+  "packageId": "pkg:m1-breadth",
+  "name": "M1 Breadth",
+  "stateSchemaVersion": 1,
+  "entry": "index.js",
+  "requestedCapabilities": [],
+  "assets": [
+    {
+      "digest": "sha256:c21b35e3f28e676cedf24c13575a7346682e101a2d26aad9598d0cdbcee9ee3b",
+      "handle": "asset:sha256:c21b35e3f28e676cedf24c13575a7346682e101a2d26aad9598d0cdbcee9ee3b",
+      "mediaType": "application/x-workspace-rgba"
+    }
+  ]
+}

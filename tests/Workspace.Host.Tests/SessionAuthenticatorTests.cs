@@ -35,4 +35,17 @@ public sealed class SessionAuthenticatorTests
         Assert.True(options.Acceptance);
         Assert.Equal("fixed", options.SessionToken);
     }
+
+    [Fact]
+    public void Consumed_token_remains_authorized_for_trusted_http_reads_without_becoming_reusable_for_websocket()
+    {
+        var auth = new SessionAuthenticator();
+        var token = auth.Issue();
+
+        Assert.True(auth.TryConsume(token, out var consumed));
+        Assert.NotNull(consumed);
+        Assert.True(auth.TryAuthorize(token, out var authorized));
+        Assert.Equal(consumed, authorized);
+        Assert.False(auth.TryConsume(token, out _));
+    }
 }

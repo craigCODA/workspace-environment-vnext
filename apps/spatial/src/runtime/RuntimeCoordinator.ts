@@ -13,6 +13,7 @@ export class RuntimeCoordinator {
   readonly #projector: ThreeResourceProjector;
   readonly #candidates = new Map<string, CandidateState>();
   readonly #activeByEntity = new Map<string, string>();
+  #packagesPaused = false;
 
   constructor(guests: GuestSupervisor, projector: ThreeResourceProjector) {
     this.#guests = guests;
@@ -66,6 +67,28 @@ export class RuntimeCoordinator {
 
   activeGenerationCount(): number {
     return this.#activeByEntity.size;
+  }
+
+  setPackagesPaused(paused: boolean): void {
+    this.#packagesPaused = paused;
+  }
+
+  packagesPaused(): boolean {
+    return this.#packagesPaused;
+  }
+
+  tick(monotonicMs: number): void {
+    if (this.#packagesPaused) return;
+    for (const [entityId, generationToken] of this.#activeByEntity) {
+      for (const update of this.#guests.tick(entityId, monotonicMs)) {
+        this.#projector.applyUpdate({ entityId, generationToken }, update);
+      }
+    }
+  }
+
+  retireActive(entityId: string): void {
+    const generationToken = this.#activeByEntity.get(entityId);
+    if (generationToken) this.#retireGeneration(generationToken);
   }
 
   #retireGeneration(generationToken: string): void {
