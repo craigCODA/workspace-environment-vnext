@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const vitePath = path.join(repoRoot, 'node_modules', 'vite', 'bin', 'vite.js');
 const cli = new Set(process.argv.slice(2));
 const dryRun = cli.has('--dry-run');
 const smoke = cli.has('--smoke');
@@ -23,7 +24,6 @@ if (Number(process.versions.node.split('.')[0]) < 24) {
 
 await ensureCommand('dotnet', ['--version'], 'Workspace Environment vNext M1 requires the .NET 8 SDK.');
 
-const vitePath = path.join(repoRoot, 'node_modules', 'vite', 'bin', 'vite.js');
 if (!skipInstall && !(await exists(vitePath))) {
   console.log('Installing locked vNext dependencies...');
   await runChecked(npmCommand(), ['ci', '--ignore-scripts'], repoRoot);
