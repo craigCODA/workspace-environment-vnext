@@ -10,7 +10,7 @@ const budget = {
   maxTransferredBytesPerBatch: 32 * 1024,
 };
 
-test('three import is rejected', async () => {
+test('A22 import "three" is rejected with an explicit compatibility error', async () => {
   const engine = await QuickJsGuestEngine.createForNodeTests(budget);
   await assert.rejects(
     () => engine.prepare('generation:three', `import * as THREE from 'three'; export function start(){}`),
@@ -19,7 +19,7 @@ test('three import is rejected', async () => {
   engine.dispose();
 });
 
-test('filesystem network process and browser globals are absent', async () => {
+test('A09 fetch process require document and WebSocket are unavailable', async () => {
   const engine = await QuickJsGuestEngine.createForNodeTests(budget);
   const result = await engine.evaluateProbe(`[
     typeof fetch, typeof process, typeof require, typeof WebSocket, typeof document
@@ -28,9 +28,26 @@ test('filesystem network process and browser globals are absent', async () => {
   engine.dispose();
 });
 
-test('infinite loop is interrupted', async () => {
+test('A08 infinite CPU loop is interrupted', async () => {
   const engine = await QuickJsGuestEngine.createForNodeTests({ ...budget, deadlineMs: 10 });
   await assert.rejects(() => engine.prepare('generation:loop', `while (true) {}`), /guest_interrupted/);
+  engine.dispose();
+});
+
+test('A08 memory allocation ceiling is enforced with a stable failure', async () => {
+  const engine = await QuickJsGuestEngine.createForNodeTests({
+    ...budget,
+    memoryLimitBytes: 8 * 1024 * 1024,
+    deadlineMs: 5_000,
+  });
+  await assert.rejects(
+    () => engine.prepare('generation:memory', `
+      const blocks = [];
+      for (let i = 0; i < 256; i += 1) blocks.push(new Uint8Array(1024 * 1024));
+      export function start() {}
+    `),
+    /guest_memory_limit_exceeded/,
+  );
   engine.dispose();
 });
 
