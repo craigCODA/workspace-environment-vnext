@@ -1,0 +1,75 @@
+name: m2a-desktop-package
+on:
+  push:
+    branches: ['m2/spatial-workspace-shell']
+    paths:
+      - 'apps/desktop/**'
+      - 'scripts/run-m2a.mjs'
+      - 'scripts/prepare-m2a-desktop.mjs'
+      - 'scripts/build-m2a-windows.mjs'
+      - 'scripts/m2a-build-command.mjs'
+      - 'scripts/m2a-build-command.test.mjs'
+      - 'scripts/m2a-package-config.test.mjs'
+      - 'package.json'
+      - '.github/workflows/m2a-desktop-package.yml'
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: windows-2025
+    timeout-minutes: 40
+    env:
+      PLATFORM: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.425'
+      - name: Install locked dependencies including Electron
+        run: npm ci
+      - name: Electron shell and packaging regressions
+        run: node --test apps/desktop/test/desktop-runtime.test.cjs scripts/desktop-build-command.test.mjs scripts/m2a-build-command.test.mjs scripts/m2a-package-config.test.mjs
+      - name: Preserve vNext contracts, Node tests, types and host tests
+        run: |
+          npm run vnext:contracts:check
+          npm run vnext:test:node
+          npm run vnext:typecheck
+          dotnet test Workspace.VNext.sln --configuration Release
+      - name: Build Windows unpacked app and NSIS setup
+        run: npm run dist:win
+      - name: Verify packaged payload
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $unpacked = 'dist/win-unpacked/Workspace Environment.exe'
+          $host = 'dist/win-unpacked/resources/host/Workspace.Host.Windows.exe'
+          $workspace = 'dist/win-unpacked/resources/spatial/workspace.html'
+          if (-not (Test-Path $unpacked)) { throw "Missing $unpacked" }
+          if (-not (Test-Path $host)) { throw "Missing $host" }
+          if (-not (Test-Path $workspace)) { throw "Missing $workspace" }
+          $installers = @(Get-ChildItem dist -File -Filter 'Workspace Environment Setup *.exe')
+          if ($installers.Count -lt 1) { throw 'NSIS setup executable was not produced.' }
+          Write-Host "Unpacked: $unpacked"
+          $installers | ForEach-Object { Write-Host "Installer: $($_.FullName)" }
+      - name: Create bare source ZIP for npm workflow
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path export | Out-Null
+          git archive --format=zip --prefix=workspace-environment-vnext-m2a-electron/ -o export/workspace-environment-vnext-m2a-electron-source.zip HEAD
+          git rev-parse HEAD | Set-Content export/COMMIT.txt -Encoding ascii
+          (Get-FileHash export/workspace-environment-vnext-m2a-electron-source.zip -Algorithm SHA256).Hash.ToLowerInvariant() | Set-Content export/SHA256.txt -Encoding ascii
+      - uses: actions/upload-artifact@v4
+        with:
+          name: m2a-electron-source
+          path: export/
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: m2a-windows-package
+          path: |
+            dist/win-unpacked/**
+            dist/Workspace Environment Setup *.exe
+          retention-days: 7
