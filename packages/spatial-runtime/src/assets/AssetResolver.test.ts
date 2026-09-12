@@ -38,3 +38,20 @@ test('host asset resolver fetches trusted RGBA bytes only for an opaque handle',
   assert.equal(requests[0]?.session, 'session-token');
   assert.match(requests[0]?.url ?? '', /\/assets\/resolve\?handle=asset%3Asha256%3A/);
 });
+
+test('host asset resolver invokes browser fetch without rebinding its receiver', async () => {
+  const handle = hostAssetHandle(`asset:sha256:${'b'.repeat(64)}`);
+  let observedThis: unknown = Symbol('unset');
+  const browserLikeFetch = function (this: unknown, _input: RequestInfo | URL, _init?: RequestInit): Promise<Response> {
+    observedThis = this;
+    if (this !== undefined) throw new TypeError('Illegal invocation');
+    return Promise.resolve(new Response(JSON.stringify({ width: 1, height: 1, rgbaBase64: 'AAAA/w==' }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }));
+  } as typeof fetch;
+  const resolver = new assetModule.HostAssetResolver!('http://127.0.0.1:43123', 'session-token', browserLikeFetch);
+
+  await resolver.resolve(handle);
+  assert.equal(observedThis, undefined);
+});
