@@ -1,0 +1,55 @@
+name: task12-red
+
+on:
+  push:
+    branches: ['task12/execution']
+
+permissions:
+  contents: read
+
+jobs:
+  red-matrix:
+    runs-on: ubuntu-24.04
+    env:
+      PLATFORM: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.20.0'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.425'
+      - run: npm ci --ignore-scripts
+      - run: npx playwright install --with-deps chromium
+      - run: dotnet build Workspace.VNext.sln --configuration Release
+      - id: guest
+        name: RED guest security tests
+        continue-on-error: true
+        run: npm test --workspace @workspace/creative-runtime
+      - id: spatial
+        name: RED renderer security tests
+        continue-on-error: true
+        run: npm test --workspace @workspace/spatial-runtime
+      - id: runtime
+        name: RED runtime policy tests
+        continue-on-error: true
+        run: dotnet test tests/Workspace.Runtime.Tests/Workspace.Runtime.Tests.csproj --configuration Release --no-build
+      - id: host
+        name: RED host boundary tests
+        continue-on-error: true
+        run: dotnet test tests/Workspace.Host.Tests/Workspace.Host.Tests.csproj --configuration Release --no-build
+      - id: acceptance
+        name: RED browser and process security acceptance
+        continue-on-error: true
+        run: npx playwright test tests/acceptance/m1-security.spec.ts --config tests/acceptance/playwright.config.ts
+      - name: Require an observed RED
+        if: always()
+        shell: bash
+        run: |
+          echo "guest=${{ steps.guest.outcome }} spatial=${{ steps.spatial.outcome }} runtime=${{ steps.runtime.outcome }} host=${{ steps.host.outcome }} acceptance=${{ steps.acceptance.outcome }}"
+          if [[ "${{ steps.guest.outcome }}" != "failure" && "${{ steps.spatial.outcome }}" != "failure" && "${{ steps.runtime.outcome }}" != "failure" && "${{ steps.host.outcome }}" != "failure" && "${{ steps.acceptance.outcome }}" != "failure" ]]; then
+            echo "Task 12 matrix unexpectedly has no RED case."
+            exit 2
+          fi
+          exit 1
