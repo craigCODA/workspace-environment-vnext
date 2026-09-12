@@ -24,7 +24,6 @@ export class MemoryAssetResolver implements AssetResolver {
   }
 }
 
-
 const hostAssetPattern = /^asset:sha256:[0-9a-f]{64}$/;
 
 export class HostAssetResolver implements AssetResolver {
@@ -35,7 +34,7 @@ export class HostAssetResolver implements AssetResolver {
   constructor(baseUrl: string, sessionToken: string, fetchImpl: typeof fetch = fetch) {
     this.#baseUrl = baseUrl.replace(/\/$/, '');
     this.#sessionToken = sessionToken;
-    this.#fetch = fetchImpl;
+    this.#fetch = (input, init) => fetchImpl(input, init);
   }
 
   async resolve(handle: HostAssetHandle): Promise<ResolvedAsset> {
