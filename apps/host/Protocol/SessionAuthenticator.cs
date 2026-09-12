@@ -11,6 +11,7 @@ public sealed class SessionAuthenticator
 {
     private readonly object _gate = new();
     private readonly Dictionary<string, AuthenticatedSession> _pending = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, AuthenticatedSession> _reusableAcceptance = new(StringComparer.Ordinal);
 
     public string Issue(string actorId = "user:local", string actorKind = "user")
     {
@@ -24,13 +25,18 @@ public sealed class SessionAuthenticator
     public void RegisterAcceptanceToken(string token, string actorId = "user:acceptance", string actorKind = "user")
     {
         if (string.IsNullOrWhiteSpace(token)) throw new ArgumentException("Session token is required.", nameof(token));
-        Register(token, new AuthenticatedSession($"session:{Guid.NewGuid():N}", actorId, actorKind));
+        var session = new AuthenticatedSession($"session:{Guid.NewGuid():N}", actorId, actorKind);
+        lock (_gate)
+        {
+            if (!_reusableAcceptance.TryAdd(token, session)) throw new InvalidOperationException("Session token already registered.");
+        }
     }
 
     public bool TryConsume(string token, out AuthenticatedSession? session)
     {
         lock (_gate)
         {
+            if (_reusableAcceptance.TryGetValue(token, out session)) return true;
             if (!_pending.Remove(token, out session)) return false;
             return true;
         }
