@@ -1,0 +1,28 @@
+name: task11-red
+
+on:
+  push:
+    branches: ['task11/execution']
+
+permissions:
+  contents: read
+
+jobs:
+  red:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.20.0'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.425'
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Build host
+        run: dotnet build Workspace.VNext.sln --configuration Release
+      - name: Observe Task 11 RED
+        run: npx playwright test tests/acceptance/m1-runtime.spec.ts tests/acceptance/m1-renderer-failure.spec.ts -g "A47|A35|A36|A50" --config tests/acceptance/playwright.config.ts
