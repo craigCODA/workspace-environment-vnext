@@ -1,0 +1,30 @@
+name: m2a-test-tools
+on:
+  push:
+    branches: ['m2/spatial-workspace-shell']
+    paths: ['.github/workflows/m2a-test-tools.yml']
+permissions:
+  contents: read
+jobs:
+  tools:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+      - run: npm ci --ignore-scripts
+      - run: npx playwright install chromium
+      - name: Export pinned runtime
+        shell: bash
+        run: |
+          mkdir -p /tmp/m2a-tools
+          cp -a "$(dirname "$(dirname "$(command -v node)")")" /tmp/m2a-tools/node
+          cp -a "$HOME/.cache/ms-playwright" /tmp/m2a-tools/browsers
+          tar -czf /tmp/m2a-linux-test-tools.tar.gz -C /tmp/m2a-tools .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: m2a-linux-test-tools
+          path: /tmp/m2a-linux-test-tools.tar.gz
+          retention-days: 7
