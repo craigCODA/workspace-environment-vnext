@@ -51,7 +51,7 @@ test('A08 memory allocation ceiling is enforced with a stable failure', async ()
   engine.dispose();
 });
 
-test('A08 retained memory cannot grow past the ceiling across ticks', async () => {
+test('A08 retained memory is stopped at the configured ceiling across ticks', async () => {
   const engine = await QuickJsGuestEngine.createForNodeTests({
     ...budget,
     memoryLimitBytes: 8 * 1024 * 1024,
@@ -63,15 +63,18 @@ test('A08 retained memory cannot grow past the ceiling across ticks', async () =
   `);
 
   let failure: unknown;
-  for (let tick = 0; tick < 32; tick += 1) {
+  let failedAtTick: number | undefined;
+  for (let tick = 1; tick <= 12; tick += 1) {
     try {
       prepared.tick(tick);
     } catch (error) {
       failure = error;
+      failedAtTick = tick;
       break;
     }
   }
   assert.match(String(failure), /guest_memory_limit_exceeded/);
+  assert.ok(failedAtTick !== undefined && failedAtTick <= 8, `memory limit was not enforced at 8 MiB: failed at tick ${failedAtTick ?? 'never'}`);
   prepared.dispose();
   engine.dispose();
 });
