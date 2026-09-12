@@ -1,0 +1,19 @@
+name: run-vnext-launcher
+
+on:
+  push:
+    branches: ['run/m1-local-launcher']
+
+permissions:
+  contents: read
+
+jobs:
+  launcher:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.20.0'
+      - name: Launcher contract
+        run: node --test scripts/run-vnext.test.mjs
