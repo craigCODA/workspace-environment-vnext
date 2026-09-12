@@ -10,10 +10,21 @@ permissions:
 jobs:
   launcher:
     runs-on: windows-2025
+    env:
+      PLATFORM: ''
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '24.20.0'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.425'
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
       - name: Launcher contract
         run: node --test scripts/run-vnext.test.mjs
+      - name: Build vNext
+        run: npm run vnext:build
+      - name: Launch real host and spatial client
+        run: node scripts/run-vnext.mjs --smoke --skip-install --skip-build
