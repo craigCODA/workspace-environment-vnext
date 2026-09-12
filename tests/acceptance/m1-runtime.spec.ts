@@ -9,6 +9,18 @@ const initialPose = {
 
 type Pose = typeof initialPose;
 
+interface DiagnosticsSnapshot {
+  readonly entities: Record<string, { transform: Pose }>;
+  readonly activeLeaseCount?: number;
+  readonly activeGenerationCount?: number;
+  readonly resourceCounts?: {
+    readonly generations: number;
+    readonly resources: number;
+    readonly stagedGroups: number;
+    readonly activeEntities: number;
+  };
+}
+
 let state: AcceptanceState;
 
 test.beforeAll(async () => {
@@ -60,6 +72,25 @@ test('A52 save during an unfinished drag recovers accepted state without a zombi
   await expect(reopened.getByTestId('agent-network-calls')).toHaveText('0');
 });
 
+test('Task10 diagnostics are deterministic and read only', async ({ page }) => {
+  await page.goto(state.appUrl);
+
+  const snapshot = await diagnosticSnapshot(page);
+  expect(snapshot.activeLeaseCount).toBe(0);
+  expect(snapshot.activeGenerationCount).toBe(0);
+  expect(snapshot.resourceCounts).toEqual({
+    generations: 0,
+    resources: 0,
+    stagedGroups: 0,
+    activeEntities: 0,
+  });
+
+  const diagnosticKeys = await page.evaluate(() => Object.keys((window as Window & {
+    __workspaceDiagnostics?: object;
+  }).__workspaceDiagnostics ?? {}).sort());
+  expect(diagnosticKeys).toEqual(['snapshot']);
+});
+
 async function dragEntity(page: Page, entityId: string, delta: { x: number; y: number }): Promise<void> {
   const handle = page.locator(`[data-entity-id="${entityId}"]`);
   await expect(handle).toBeVisible();
@@ -103,24 +134,20 @@ async function requireEntityPose(page: Page, entityId: string): Promise<Pose> {
 }
 
 async function entityPose(page: Page, entityId: string): Promise<Pose | undefined> {
-  return page.evaluate((id) => {
-    const diagnostics = (window as Window & {
-      __workspaceDiagnostics?: {
-        snapshot(): {
-          entities: Record<string, { transform: Pose }>;
-          activeLeaseCount?: number;
-        };
-      };
-    }).__workspaceDiagnostics;
-    return diagnostics?.snapshot().entities[id]?.transform;
-  }, entityId);
+  const snapshot = await diagnosticSnapshot(page);
+  return snapshot.entities[entityId]?.transform;
 }
 
 async function activeLeaseCount(page: Page): Promise<number | undefined> {
+  return (await diagnosticSnapshot(page)).activeLeaseCount;
+}
+
+async function diagnosticSnapshot(page: Page): Promise<DiagnosticsSnapshot> {
   return page.evaluate(() => {
     const diagnostics = (window as Window & {
-      __workspaceDiagnostics?: { snapshot(): { activeLeaseCount?: number } };
+      __workspaceDiagnostics?: { snapshot(): DiagnosticsSnapshot };
     }).__workspaceDiagnostics;
-    return diagnostics?.snapshot().activeLeaseCount;
+    if (!diagnostics) throw new Error('workspace_diagnostics_missing');
+    return diagnostics.snapshot();
   });
 }
