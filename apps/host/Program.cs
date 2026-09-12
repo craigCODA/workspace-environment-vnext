@@ -1,12 +1,33 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using Workspace.Core.Commands;
+using Workspace.Core.History;
+using Workspace.Core.World;
 using Workspace.Host.Composition;
 using Workspace.Host.Protocol;
+using Workspace.Storage.Sqlite;
 
 var options = HostRuntimeOptions.Parse(args);
 var composition = new VNextComposition();
 var sessionToken = composition.InitializeSession(options);
+var stateRoot = options.StateRoot ?? Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+    "WorkspaceEnvironmentVNext");
+var databasePath = Path.Combine(stateRoot, "workspace-vnext.db");
+await using var store = await SqliteWorldStore.OpenAsync(databasePath);
+var initial = await store.LoadAsync(CancellationToken.None);
+if (options.Acceptance && initial.Entities.Count == 0)
+{
+    var box = WorldEntity.Create("entity:box", "Box");
+    initial = new WorldState(new Dictionary<string, WorldEntity>(StringComparer.Ordinal)
+    {
+        [box.Id] = box,
+    }, 0);
+    await store.PersistAcceptedAsync(initial, null, CancellationToken.None);
+}
+var engine = new WorldEngine(initial, store);
+var commands = new WorkspaceCommandService(engine, store);
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls($"http://127.0.0.1:{options.Port}");
@@ -15,7 +36,7 @@ app.UseWebSockets();
 
 var endpoint = new WorkspaceSocketEndpoint(
     _ => null,
-    (message, context, cancellationToken) => ValueTask.FromResult(HostCommandDispatchResult.Reject("command_not_wired")));
+    commands.DispatchAsync);
 
 app.Map("/workspace", async context =>
 {
@@ -38,7 +59,15 @@ app.Map("/workspace", async context =>
         var json = await ReceiveTextAsync(socket, context.RequestAborted);
         if (json is null) break;
         var result = await endpoint.DispatchJsonAsync(json, session, context.RequestAborted);
-        var response = JsonSerializer.Serialize(new { type = "command.result", protocolVersion = 1, accepted = result.Accepted, errorCode = result.ErrorCode });
+        var response = JsonSerializer.Serialize(new
+        {
+            type = "command.result",
+            protocolVersion = 1,
+            requestId = result.RequestId,
+            accepted = result.Accepted,
+            errorCode = result.ErrorCode,
+            payload = result.Payload,
+        });
         await socket.SendAsync(Encoding.UTF8.GetBytes(response), WebSocketMessageType.Text, true, context.RequestAborted);
     }
 });

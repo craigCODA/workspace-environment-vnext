@@ -4,10 +4,10 @@ using Workspace.Core.Commands;
 namespace Workspace.Host.Protocol;
 
 public sealed record HostCommandMessage(string RequestId, string Command, JsonElement Payload);
-public sealed record HostCommandDispatchResult(bool Accepted, string? ErrorCode)
+public sealed record HostCommandDispatchResult(bool Accepted, string? ErrorCode, JsonElement? Payload = null, string? RequestId = null)
 {
-    public static HostCommandDispatchResult Accept() => new(true, null);
-    public static HostCommandDispatchResult Reject(string errorCode) => new(false, errorCode);
+    public static HostCommandDispatchResult Accept(JsonElement? payload = null) => new(true, null, payload);
+    public static HostCommandDispatchResult Reject(string errorCode, JsonElement? payload = null) => new(false, errorCode, payload);
 }
 
 public sealed class WorkspaceSocketEndpoint
@@ -71,7 +71,8 @@ public sealed class WorkspaceSocketEndpoint
                 session.SessionId,
                 session.ActorKind == "package" ? session.ActorId : null,
                 _generationResolver(session));
-            return await _dispatch(message, context, cancellationToken);
+            var result = await _dispatch(message, context, cancellationToken);
+            return result with { RequestId = message.RequestId };
         }
     }
 }
