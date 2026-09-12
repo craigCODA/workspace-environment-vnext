@@ -1,10 +1,10 @@
-name: apply-task10-a23-green
+name: apply-task10-a52-green
 
 on:
   push:
-    branches: ['task10/a23-green']
+    branches: ['task10/a52-red']
     paths:
-      - '.github/patches/task10-a23-production.patch.gz'
+      - '.github/patches/task10-a52-production.patch.gz'
 
 permissions:
   contents: write
@@ -16,13 +16,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Apply A23 production patch
+      - name: Apply A52 production patch
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "CraigCODA"
           git config user.email "mistercraigr@gmail.com"
-          gunzip -c .github/patches/task10-a23-production.patch.gz | git apply --index -
-          git rm .github/patches/task10-a23-production.patch.gz
-          git commit -m "feat(vnext): wire A23 model-offline editing path"
-          git push origin HEAD:task10/a23-green
+          gunzip -c .github/patches/task10-a52-production.patch.gz | git apply --index -
+          git rm .github/patches/task10-a52-production.patch.gz
+          git commit -m "fix(vnext): clear abandoned edit leases on disconnect"
+          git push origin HEAD:task10/a52-red
