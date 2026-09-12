@@ -1,13 +1,11 @@
-name: task10-a23-green
+name: task10-a52-red
 
 on:
   push:
-    branches: ['task10/a23-green']
+    branches: ['task10/a52-red']
     paths:
       - '.github/workflows/task10-a23-red.yml'
-      - 'apps/host/**'
-      - 'apps/spatial/**'
-      - 'tests/Workspace.Host.Tests/**'
+      - 'tests/acceptance/**'
 
 permissions:
   contents: read
@@ -31,5 +29,5 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Build host
         run: dotnet build Workspace.VNext.sln --configuration Release
-      - name: Run A23 acceptance
-        run: npx playwright test tests/acceptance/m1-runtime.spec.ts -g "A23" --config tests/acceptance/playwright.config.ts
+      - name: Run A52 acceptance RED
+        run: npx playwright test tests/acceptance/m1-runtime.spec.ts -g "A52" --config tests/acceptance/playwright.config.ts
