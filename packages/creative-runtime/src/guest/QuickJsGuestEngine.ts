@@ -93,6 +93,7 @@ export class QuickJsGuestEngine {
       interrupted.reset();
       const result = context.evalCode(source, 'guest-package.js', { type: 'module' });
       moduleHandle = unwrap(context, result, interrupted.wasInterrupted) as HandleLike;
+      assertGuestMemoryWithinBudget(runtime, context, this.#budget);
 
       const candidateOnTick = context.getProp(moduleHandle, 'onTick');
       if (context.typeof(candidateOnTick) === 'function') {
@@ -261,6 +262,7 @@ class PreparedQuickJsGuest implements PreparedGuest {
       const result = this.#context.callFunction(this.#onTickHandle, this.#context.global, tickHandle);
       const resultHandle = unwrap(this.#context, result, this.#interrupted.wasInterrupted) as HandleLike;
       resultHandle.dispose();
+      assertGuestMemoryWithinBudget(this.#runtime, this.#context, this.#budget);
       return structuredClone(this.#state.updates);
     } catch (error) {
       throw normalizeGuestError(error, this.#interrupted.wasInterrupted());
@@ -286,6 +288,22 @@ function createFixedWasmMemory(budget: GuestBudget): WebAssembly.Memory {
     + (budget.memoryLimitBytes * MAX_SIMULTANEOUS_M1_GENERATIONS);
   const pages = Math.ceil(requiredBytes / WASM_PAGE_BYTES);
   return new WebAssembly.Memory({ initial: pages, maximum: pages });
+}
+
+function assertGuestMemoryWithinBudget(runtime: RuntimeLike, context: ContextLike, budget: GuestBudget): void {
+  const usageHandle = runtime.computeMemoryUsage();
+  try {
+    const usage = context.dump(usageHandle) as { memory_used_size?: unknown };
+    const usedBytes = usage.memory_used_size;
+    if (typeof usedBytes !== 'number' || !Number.isFinite(usedBytes)) {
+      throw new Error('guest_memory_accounting_failed');
+    }
+    if (usedBytes > budget.memoryLimitBytes) {
+      throw new Error('guest_memory_limit_exceeded');
+    }
+  } finally {
+    usageHandle.dispose();
+  }
 }
 
 function consumeBudget(
@@ -322,6 +340,7 @@ function normalizeGuestError(error: unknown, interrupted: boolean): Error {
   const moduleMatch = message.match(/module_not_allowed:[^\s'";,)]+/);
   if (moduleMatch) return new Error(moduleMatch[0]);
   if (message.includes('guest_output_budget_exceeded')) return new Error('guest_output_budget_exceeded');
+  if (message.includes('guest_memory_limit_exceeded')) return new Error('guest_memory_limit_exceeded');
   if (/out of memory/i.test(message)) return new Error('guest_memory_limit_exceeded');
   if (message.includes('interrupted')) return new Error('guest_interrupted');
   return new Error(message);

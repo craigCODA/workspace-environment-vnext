@@ -51,6 +51,34 @@ test('A08 memory allocation ceiling is enforced with a stable failure', async ()
   engine.dispose();
 });
 
+test('A08 retained memory is stopped at the configured ceiling across ticks', async () => {
+  const engine = await QuickJsGuestEngine.createForNodeTests({
+    ...budget,
+    memoryLimitBytes: 8 * 1024 * 1024,
+    deadlineMs: 500,
+  });
+  const prepared = await engine.prepare('generation:retained-memory', `
+    const blocks = [];
+    export function onTick() { blocks.push(new Uint8Array(1024 * 1024)); }
+  `);
+
+  let failure: unknown;
+  let failedAtTick: number | undefined;
+  for (let tick = 1; tick <= 12; tick += 1) {
+    try {
+      prepared.tick(tick);
+    } catch (error) {
+      failure = error;
+      failedAtTick = tick;
+      break;
+    }
+  }
+  assert.match(String(failure), /guest_memory_limit_exceeded/);
+  assert.ok(failedAtTick !== undefined && failedAtTick <= 8, `memory limit was not enforced at 8 MiB: failed at tick ${failedAtTick ?? 'never'}`);
+  prepared.dispose();
+  engine.dispose();
+});
+
 test('descriptor emission is plain validated data and bounded', async () => {
   const engine = await QuickJsGuestEngine.createForNodeTests({ ...budget, maxDescriptorsPerBatch: 1 });
   const prepared = await engine.prepare('generation:one', `
