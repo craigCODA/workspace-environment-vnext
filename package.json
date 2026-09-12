@@ -24,6 +24,7 @@
     "native:build": "npm run build --workspace @workspace/spatial-client && dotnet build apps/desktop-native/Workspace.Desktop.sln --configuration Release --property:Platform=x64",
     "native:stage": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-native-desktop.ps1 -Configuration Release",
     "native:install": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-native-preview.ps1",
+    "vnext": "node scripts/run-vnext.mjs",
     "vnext:contracts": "node scripts/generate-vnext-contracts.mjs",
     "vnext:contracts:check": "node scripts/check-vnext-contracts.mjs",
     "vnext:test:dotnet": "dotnet test Workspace.VNext.sln --configuration Release",
