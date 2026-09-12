@@ -1,0 +1,38 @@
+name: task11-green
+
+on:
+  push:
+    branches: ['task11/execution']
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    env:
+      PLATFORM: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.20.0'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.425'
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Verify generated contracts
+        run: npm run vnext:contracts:check
+      - name: Run vNext Node tests
+        run: npm run vnext:test:node
+      - name: Typecheck vNext
+        run: npm run vnext:typecheck
+      - name: Build vNext
+        run: npm run vnext:build
+      - name: Run .NET tests
+        run: dotnet test Workspace.VNext.sln --configuration Release --no-build
+      - name: Run Task 11 acceptance
+        run: npx playwright test tests/acceptance/m1-runtime.spec.ts tests/acceptance/m1-renderer-failure.spec.ts --config tests/acceptance/playwright.config.ts
