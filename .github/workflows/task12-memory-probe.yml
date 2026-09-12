@@ -1,0 +1,54 @@
+name: task12-memory-probe
+
+on:
+  push:
+    branches: ['task12/execution']
+    paths: ['.github/workflows/task12-memory-probe.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.20.0'
+      - run: npm ci --ignore-scripts
+      - name: Probe custom fixed wasm memory
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import baseVariant from '@jitl/quickjs-singlefile-mjs-release-sync';
+          import { newQuickJSWASMModuleFromVariant, newVariant } from 'quickjs-emscripten-core';
+
+          for (const mib of [8, 16, 32, 64]) {
+            const pages = Math.ceil((mib * 1024 * 1024) / 65536);
+            try {
+              const memory = new WebAssembly.Memory({ initial: pages, maximum: pages });
+              const variant = newVariant(baseVariant, { wasmMemory: memory });
+              const mod = await newQuickJSWASMModuleFromVariant(variant);
+              const runtime = mod.newRuntime();
+              runtime.setMemoryLimit(8 * 1024 * 1024);
+              const context = runtime.newContext();
+              const before = memory.buffer.byteLength;
+              const result = context.evalCode(`const blocks=[]; for(let i=0;i<256;i++) blocks.push(new Uint8Array(1024*1024)); 'done'`);
+              const after = memory.buffer.byteLength;
+              let outcome = 'value';
+              if (result.error) {
+                outcome = JSON.stringify(context.dump(result.error));
+                result.error.dispose();
+              } else {
+                result.value.dispose();
+              }
+              console.log(JSON.stringify({ mib, before, after, outcome }));
+              context.dispose();
+              runtime.dispose();
+              mod.dispose();
+            } catch (error) {
+              console.log(JSON.stringify({ mib, setupError: String(error) }));
+            }
+          }
+          NODE
