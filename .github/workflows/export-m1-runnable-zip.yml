@@ -1,0 +1,23 @@
+name: export-m1-runnable-zip
+
+on:
+  push:
+    branches: ['export/m1-runnable-zip-20260912']
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Archive verified runnable M1 commit
+        run: git archive --format=zip --output=workspace-environment-vnext-m1-runnable-31d39ba.zip 31d39baee05edb59a5de5b432c2ed1c61880b3bf
+      - uses: actions/upload-artifact@v4
+        with:
+          name: workspace-environment-vnext-m1-runnable-31d39ba
+          path: workspace-environment-vnext-m1-runnable-31d39ba.zip
+          if-no-files-found: error
