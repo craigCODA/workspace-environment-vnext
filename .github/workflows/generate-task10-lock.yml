@@ -1,0 +1,32 @@
+name: generate-task10-lock
+
+on:
+  push:
+    branches: ['task10/a52-red']
+    paths:
+      - '.github/workflows/generate-task10-lock.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  lock:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.20.0'
+      - name: Generate canonical lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --package-lock-only --ignore-scripts
+          git diff --check -- package-lock.json
+          git config user.name "CraigCODA"
+          git config user.email "mistercraigr@gmail.com"
+          git add package-lock.json
+          git commit -m "build(vnext): lock Playwright 1.63 acceptance dependency"
+          git push origin HEAD:task10/a52-red
