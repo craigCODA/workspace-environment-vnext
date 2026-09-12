@@ -1,0 +1,28 @@
+name: apply-task10-a23-green
+
+on:
+  push:
+    branches: ['task10/a23-green']
+    paths:
+      - '.github/patches/task10-a23-production.patch.gz'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply A23 production patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "CraigCODA"
+          git config user.email "mistercraigr@gmail.com"
+          gunzip -c .github/patches/task10-a23-production.patch.gz | git apply --index -
+          git rm .github/patches/task10-a23-production.patch.gz
+          git commit -m "feat(vnext): wire A23 model-offline editing path"
+          git push origin HEAD:task10/a23-green
