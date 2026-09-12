@@ -1,0 +1,8 @@
+{
+  "packageId": "pkg:m1-line",
+  "name": "M1 Line",
+  "stateSchemaVersion": 1,
+  "entry": "index.js",
+  "requestedCapabilities": [],
+  "assets": []
+}
