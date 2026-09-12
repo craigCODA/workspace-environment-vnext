@@ -1,4 +1,4 @@
-import { newQuickJSWASMModuleFromVariant } from 'quickjs-emscripten-core';
+import { newQuickJSWASMModuleFromVariant, newVariant } from 'quickjs-emscripten-core';
 import type { CreativeResourceDescriptor, CreativeResourceUpdate, JsonValue } from '@workspace/creative-sdk';
 import { validateDescriptor } from '@workspace/spatial-runtime';
 import type { GuestBudget, PreparedGuest } from './GuestProtocol.ts';
@@ -18,6 +18,10 @@ interface EmissionState {
   phase: 'prepare' | 'tick';
 }
 
+const WASM_PAGE_BYTES = 64 * 1024;
+const QUICKJS_WASM_MINIMUM_BYTES = 16 * 1024 * 1024;
+const MAX_SIMULTANEOUS_M1_GENERATIONS = 2;
+
 export class QuickJsGuestEngine {
   readonly #module: QuickJsModule;
   readonly #budget: GuestBudget;
@@ -32,13 +36,15 @@ export class QuickJsGuestEngine {
   static async createForNodeTests(budget: GuestBudget): Promise<QuickJsGuestEngine> {
     const nodeVariantSpecifier = '@jitl/quickjs-singlefile-mjs-release-sync';
     const imported = await import(/* @vite-ignore */ nodeVariantSpecifier);
-    const module = await newQuickJSWASMModuleFromVariant(imported.default);
+    const variant = newVariant(imported.default, { wasmMemory: createFixedWasmMemory(budget) });
+    const module = await newQuickJSWASMModuleFromVariant(variant);
     return new QuickJsGuestEngine(module, budget);
   }
 
   static async createForBrowser(budget: GuestBudget): Promise<QuickJsGuestEngine> {
     const imported = await import('@jitl/quickjs-singlefile-browser-release-sync');
-    const module = await newQuickJSWASMModuleFromVariant(imported.default);
+    const variant = newVariant(imported.default, { wasmMemory: createFixedWasmMemory(budget) });
+    const module = await newQuickJSWASMModuleFromVariant(variant);
     return new QuickJsGuestEngine(module, budget);
   }
 
@@ -275,6 +281,13 @@ class PreparedQuickJsGuest implements PreparedGuest {
   }
 }
 
+function createFixedWasmMemory(budget: GuestBudget): WebAssembly.Memory {
+  const requiredBytes = QUICKJS_WASM_MINIMUM_BYTES
+    + (budget.memoryLimitBytes * MAX_SIMULTANEOUS_M1_GENERATIONS);
+  const pages = Math.ceil(requiredBytes / WASM_PAGE_BYTES);
+  return new WebAssembly.Memory({ initial: pages, maximum: pages });
+}
+
 function consumeBudget(
   state: EmissionState,
   value: CreativeResourceDescriptor | CreativeResourceUpdate,
@@ -301,10 +314,15 @@ function unwrap(context: ContextLike, result: ReturnType<ContextLike['evalCode']
 
 function normalizeGuestError(error: unknown, interrupted: boolean): Error {
   if (interrupted) return new Error('guest_interrupted');
-  const message = error instanceof Error ? error.message : String(error);
+  const message = error instanceof Error
+    ? error.message
+    : typeof error === 'object' && error !== null && 'message' in error
+      ? String((error as { message?: unknown }).message)
+      : String(error);
   const moduleMatch = message.match(/module_not_allowed:[^\s'";,)]+/);
   if (moduleMatch) return new Error(moduleMatch[0]);
   if (message.includes('guest_output_budget_exceeded')) return new Error('guest_output_budget_exceeded');
+  if (/out of memory/i.test(message)) return new Error('guest_memory_limit_exceeded');
   if (message.includes('interrupted')) return new Error('guest_interrupted');
   return new Error(message);
 }
