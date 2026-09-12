@@ -1,0 +1,8 @@
+{
+  "packageId": "pkg:m1-procedural",
+  "name": "M1 Procedural",
+  "stateSchemaVersion": 1,
+  "entry": "index.js",
+  "requestedCapabilities": [],
+  "assets": []
+}
