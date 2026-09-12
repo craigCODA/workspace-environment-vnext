@@ -1,0 +1,28 @@
+name: task11-apply-patch
+
+on:
+  push:
+    branches: ['task11/execution']
+    paths:
+      - '.github/patches/task11-production.patch.gz'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply Task 11 production patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "CraigCODA"
+          git config user.email "mistercraigr@gmail.com"
+          gunzip -c .github/patches/task11-production.patch.gz | git apply --index -
+          git rm .github/patches/task11-production.patch.gz
+          git commit -m "feat(vnext): stage Task 11 implementation"
+          git push origin HEAD:task11/execution
