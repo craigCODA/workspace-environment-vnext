@@ -68,6 +68,22 @@ test('A47 point-buffer and shader-uniform updates stay package-local', async () 
   assert.equal(material.uniforms.uTime?.value, 3);
 });
 
+test('A10 guessed other-generation resource handle is rejected', async () => {
+  const assets = new MemoryAssetResolver();
+  const assetHandle = hostAssetHandle(`asset:sha256:${'a'.repeat(64)}`);
+  assets.set(assetHandle, { width: 1, height: 1, rgba: new Uint8Array([255, 0, 0, 255]) });
+  const projector = new ThreeResourceProjector(new THREE.Group(), assets);
+  await projector.applyBatch(owner, breadthDescriptors(assetHandle));
+
+  const attacker = { entityId: 'entity:attacker', generationToken: 'generation:attacker', implementationRevision: 1 };
+  assert.throws(
+    () => projector.applyUpdate(attacker, { kind: 'update', id: 'points', patch: { visible: false } }),
+    /resource_not_owned/,
+  );
+  const points = projector.getResource(owner.generationToken, 'points');
+  assert.ok(points instanceof THREE.Points);
+  assert.equal(points.visible, true);
+});
 
 test('A47 projected kinds remain read-only diagnostics for the active generation', async () => {
   const assets = new MemoryAssetResolver();
