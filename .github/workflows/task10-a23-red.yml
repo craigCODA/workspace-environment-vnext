@@ -1,4 +1,4 @@
-name: task10-diagnostics-red
+name: task10-final-gate
 
 on:
   push:
@@ -10,12 +10,14 @@ on:
       - 'packages/spatial-runtime/**'
       - 'tests/Workspace.Host.Tests/**'
       - 'tests/acceptance/**'
+      - 'package.json'
+      - 'package-lock.json'
 
 permissions:
   contents: read
 
 jobs:
-  acceptance:
+  verify:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -25,13 +27,19 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.425'
-      - name: Install repository dependencies
-        run: npm install --ignore-scripts
-      - name: Install Playwright test runner
-        run: npm install --no-save --ignore-scripts @playwright/test@1.63.0
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
-      - name: Build host
-        run: dotnet build Workspace.VNext.sln --configuration Release
-      - name: Run Task10 diagnostics RED
-        run: npx playwright test tests/acceptance/m1-runtime.spec.ts -g "diagnostics" --config tests/acceptance/playwright.config.ts
+      - name: Verify generated contracts
+        run: npm run vnext:contracts:check
+      - name: Run vNext Node tests
+        run: npm run vnext:test:node
+      - name: Typecheck vNext
+        run: npm run vnext:typecheck
+      - name: Build vNext
+        run: npm run vnext:build
+      - name: Run vNext .NET tests
+        run: npm run vnext:test:dotnet
+      - name: Run Task10 acceptance
+        run: npm run vnext:test:acceptance
