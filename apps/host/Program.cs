@@ -54,21 +54,28 @@ app.Map("/workspace", async context =>
         return;
     }
 
-    while (socket.State == WebSocketState.Open && !context.RequestAborted.IsCancellationRequested)
+    try
     {
-        var json = await ReceiveTextAsync(socket, context.RequestAborted);
-        if (json is null) break;
-        var result = await endpoint.DispatchJsonAsync(json, session, context.RequestAborted);
-        var response = JsonSerializer.Serialize(new
+        while (socket.State == WebSocketState.Open && !context.RequestAborted.IsCancellationRequested)
         {
-            type = "command.result",
-            protocolVersion = 1,
-            requestId = result.RequestId,
-            accepted = result.Accepted,
-            errorCode = result.ErrorCode,
-            payload = result.Payload,
-        });
-        await socket.SendAsync(Encoding.UTF8.GetBytes(response), WebSocketMessageType.Text, true, context.RequestAborted);
+            var json = await ReceiveTextAsync(socket, context.RequestAborted);
+            if (json is null) break;
+            var result = await endpoint.DispatchJsonAsync(json, session, context.RequestAborted);
+            var response = JsonSerializer.Serialize(new
+            {
+                type = "command.result",
+                protocolVersion = 1,
+                requestId = result.RequestId,
+                accepted = result.Accepted,
+                errorCode = result.ErrorCode,
+                payload = result.Payload,
+            });
+            await socket.SendAsync(Encoding.UTF8.GetBytes(response), WebSocketMessageType.Text, true, context.RequestAborted);
+        }
+    }
+    finally
+    {
+        commands.CancelSession(session.SessionId);
     }
 });
 

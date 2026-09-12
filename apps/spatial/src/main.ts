@@ -28,6 +28,7 @@ interface WorldEntitySnapshot {
 
 interface WorldSnapshot {
   readonly worldRevision: number;
+  readonly activeLeaseCount: number;
   readonly entities: Record<string, WorldEntitySnapshot>;
 }
 
@@ -87,7 +88,7 @@ Object.assign(surface.style, {
 });
 appRoot.append(title, status, controls, surface);
 
-let currentWorld: WorldSnapshot = { worldRevision: 0, entities: {} };
+let currentWorld: WorldSnapshot = { worldRevision: 0, activeLeaseCount: 0, entities: {} };
 window.__workspaceDiagnostics = Object.freeze({
   snapshot: () => structuredClone(currentWorld),
 });
