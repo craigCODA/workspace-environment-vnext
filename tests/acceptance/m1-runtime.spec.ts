@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { startAcceptanceState, type AcceptanceState } from './helpers/start-state.ts';
 
 const initialPose = {
@@ -9,8 +9,17 @@ const initialPose = {
 
 type Pose = typeof initialPose;
 
+interface ResourceCounts {
+  readonly generations: number;
+  readonly resources: number;
+  readonly stagedGroups: number;
+  readonly activeEntities: number;
+}
+
 interface DiagnosticSnapshot {
-  readonly activeLeaseCount?: number;
+  readonly activeLeaseCount: number;
+  readonly activeGenerationCount: number;
+  readonly resourceCounts: ResourceCounts;
   readonly entities: Record<string, { transform: Pose }>;
 }
 
@@ -27,6 +36,7 @@ test.afterAll(async () => {
 test('A23 ordinary editing is model independent', async ({ page }) => {
   await page.goto(state.appUrl);
   await expect(page.getByTestId('agent-network-calls')).toHaveText('0');
+  await expectTrustedDiagnostics(page);
 
   await dragEntity(page, 'entity:box', { x: 120, y: 0 });
   await expect.poll(async () => (await entityPose(page, 'entity:box'))?.position[0]).not.toBe(0);
@@ -40,6 +50,7 @@ test('A23 ordinary editing is model independent', async ({ page }) => {
 
   await expectEntityPose(page, 'entity:box', initialPose);
   await expect(page.getByTestId('agent-network-calls')).toHaveText('0');
+  await expectTrustedDiagnostics(page);
 });
 
 test('A52 save during an active drag reopens accepted state without a stale lease', async ({ browser }) => {
@@ -57,6 +68,7 @@ test('A52 save during an active drag reopens accepted state without a stale leas
   await reopened.goto(state.appUrl);
   await expectEntityPose(reopened, 'entity:box', initialPose);
   await expect.poll(async () => (await diagnosticSnapshot(reopened))?.activeLeaseCount).toBe(0);
+  await expectTrustedDiagnostics(reopened);
 
   await dragEntity(reopened, 'entity:box', { x: 100, y: 0 });
   await expect.poll(async () => (await entityPose(reopened, 'entity:box'))?.position[0]).not.toBe(0);
@@ -65,6 +77,32 @@ test('A52 save during an active drag reopens accepted state without a stale leas
 
   await reopened.close();
 });
+
+async function expectTrustedDiagnostics(page: Page): Promise<void> {
+  await expect.poll(async () => page.evaluate(() => {
+    const diagnostics = (window as Window & {
+      __workspaceDiagnostics?: { snapshot(): DiagnosticSnapshot };
+    }).__workspaceDiagnostics;
+    return diagnostics ? {
+      frozen: Object.isFrozen(diagnostics),
+      keys: Object.keys(diagnostics).sort(),
+      snapshot: diagnostics.snapshot(),
+    } : undefined;
+  })).toEqual({
+    frozen: true,
+    keys: ['snapshot'],
+    snapshot: expect.objectContaining({
+      activeLeaseCount: 0,
+      activeGenerationCount: 0,
+      resourceCounts: {
+        generations: 0,
+        resources: 0,
+        stagedGroups: 0,
+        activeEntities: 0,
+      },
+    }),
+  });
+}
 
 async function beginDragPreview(page: Page, entityId: string, delta: { x: number; y: number }): Promise<void> {
   const handle = page.locator(`[data-entity-id="${entityId}"]`);
