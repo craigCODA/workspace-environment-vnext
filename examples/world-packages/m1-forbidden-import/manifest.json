@@ -1,0 +1,8 @@
+{
+  "packageId": "pkg:m1-forbidden-import",
+  "name": "M1 Forbidden Import",
+  "stateSchemaVersion": 1,
+  "entry": "index.js",
+  "requestedCapabilities": [],
+  "assets": []
+}

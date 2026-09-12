@@ -1,0 +1,8 @@
+{
+  "packageId": "pkg:m1-malformed",
+  "name": "M1 Malformed",
+  "stateSchemaVersion": 1,
+  "entry": "index.js",
+  "requestedCapabilities": [],
+  "assets": []
+}

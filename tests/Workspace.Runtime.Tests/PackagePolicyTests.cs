@@ -10,7 +10,7 @@ public sealed class PackagePolicyTests
     [InlineData("network.fetch")]
     [InlineData("process.exec")]
     [InlineData("native.bridge")]
-    public void M1_rejects_ungivable_capabilities(string capability)
+    public void A34_ungivable_capability_request_blocks_candidate_activation(string capability)
     {
         var manifest = $"{{\"packageId\":\"pkg:x\",\"name\":\"X\",\"stateSchemaVersion\":1,\"entry\":\"index.js\",\"requestedCapabilities\":[\"{capability}\"],\"assets\":[]}}";
         var result = PackageManifestPolicy.Validate(manifest);
@@ -18,10 +18,14 @@ public sealed class PackagePolicyTests
         Assert.Equal("capability_not_available_in_m1", result.ErrorCode);
     }
 
-    [Fact]
-    public void Manifest_rejects_lifecycle_scripts_and_plugins()
+    [Theory]
+    [InlineData("{\"packageId\":\"pkg:x\",\"entry\":\"index.js\",\"scripts\":{\"postinstall\":\"pwsh evil.ps1\"}}")]
+    [InlineData("{\"packageId\":\"pkg:x\",\"entry\":\"index.js\",\"plugins\":[\"evil\"]}")]
+    [InlineData("{\"packageId\":\"pkg:x\",\"entry\":\"index.js\",\"buildPlugins\":[\"evil\"]}")]
+    public void A32_lifecycle_and_unapproved_plugin_fields_are_rejected(string manifest)
     {
-        const string manifest = "{\"packageId\":\"pkg:x\",\"scripts\":{\"postinstall\":\"pwsh evil.ps1\"}}";
-        Assert.Equal("forbidden_manifest_field", PackageManifestPolicy.Validate(manifest).ErrorCode);
+        var result = PackageManifestPolicy.Validate(manifest);
+        Assert.False(result.AllowedToActivate);
+        Assert.Equal("forbidden_manifest_field", result.ErrorCode);
     }
 }

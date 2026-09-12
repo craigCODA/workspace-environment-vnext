@@ -7,7 +7,7 @@ namespace Workspace.Host.Tests;
 public sealed class WorkspaceSocketEndpointTests
 {
     [Fact]
-    public async Task Payload_cannot_forge_actor_or_generation()
+    public async Task A33_forged_actor_and_generation_payload_are_ignored_in_favor_of_authenticated_context()
     {
         var session = new AuthenticatedSession("s1", "user:real", "user");
         CommandContext? captured = null;
@@ -42,7 +42,7 @@ public sealed class WorkspaceSocketEndpointTests
     }
 
     [Fact]
-    public async Task Unknown_top_level_property_is_rejected_before_dispatch()
+    public async Task A33_forged_top_level_actor_is_rejected_before_dispatch()
     {
         var called = false;
         var endpoint = new WorkspaceSocketEndpoint(
