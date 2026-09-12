@@ -1,0 +1,67 @@
+name: run-current-vnext
+
+on:
+  push:
+    branches: ['run/current-vnext']
+
+permissions:
+  contents: read
+
+jobs:
+  launch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.20.0'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.425'
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Build vNext
+        run: dotnet build Workspace.VNext.sln --configuration Release
+      - name: Create launch probe
+        shell: bash
+        run: |
+          cat > tests/acceptance/run-current.spec.ts <<'EOF'
+          import { expect, test } from '@playwright/test';
+          import { mkdir, writeFile } from 'node:fs/promises';
+          import { startAcceptanceState } from './helpers/start-state.ts';
+
+          test('launch current integrated M1 runtime', async ({ page }) => {
+            const state = await startAcceptanceState();
+            try {
+              await page.goto(state.appUrl);
+              await expect(page.locator('#app')).toHaveAttribute('data-runtime', 'connected');
+              await expect(page.locator('[data-entity-id="entity:box"]')).toBeVisible();
+              await mkdir('tests/acceptance/run-artifacts', { recursive: true });
+              await page.screenshot({
+                path: 'tests/acceptance/run-artifacts/workspace-vnext.png',
+                fullPage: true,
+              });
+              const diagnostics = await page.evaluate(() => {
+                const workspace = window as Window & {
+                  __workspaceDiagnostics?: { snapshot(): unknown };
+                };
+                return workspace.__workspaceDiagnostics?.snapshot() ?? null;
+              });
+              await writeFile(
+                'tests/acceptance/run-artifacts/diagnostics.json',
+                JSON.stringify({ url: state.appUrl, diagnostics }, null, 2),
+              );
+            } finally {
+              await state.stop();
+            }
+          });
+          EOF
+      - name: Launch in Chromium
+        run: npx playwright test tests/acceptance/run-current.spec.ts --config tests/acceptance/playwright.config.ts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: workspace-vnext-current-run
+          path: tests/acceptance/run-artifacts
+          if-no-files-found: error
