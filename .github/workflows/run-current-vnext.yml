@@ -27,7 +27,7 @@ jobs:
       - name: Create launch probe
         shell: bash
         run: |
-          cat > tests/acceptance/run-current.spec.ts <<'EOF'
+          cat > tests/acceptance/m1-run-current.spec.ts <<'EOF'
           import { expect, test } from '@playwright/test';
           import { mkdir, writeFile } from 'node:fs/promises';
           import { startAcceptanceState } from './helpers/start-state.ts';
@@ -59,7 +59,7 @@ jobs:
           });
           EOF
       - name: Launch in Chromium
-        run: npx playwright test tests/acceptance/run-current.spec.ts --config tests/acceptance/playwright.config.ts
+        run: npx playwright test tests/acceptance/m1-run-current.spec.ts --config tests/acceptance/playwright.config.ts
       - uses: actions/upload-artifact@v4
         with:
           name: workspace-vnext-current-run
