@@ -16,8 +16,9 @@ jobs:
         with:
           fetch-depth: 0
       - name: Record observed Windows M1 evidence
-        shell: python
+        shell: bash
         run: |
+          python <<'PY'
           from pathlib import Path
           p = Path('docs/architecture/vnext/m1-acceptance.md')
           text = p.read_text(encoding='utf-8')
@@ -58,6 +59,7 @@ This is software-rendered SwiftShader evidence. It is not evidence that every ph
           if old not in text:
               raise SystemExit('expected final evidence placeholder block not found')
           p.write_text(text.replace(old, new), encoding='utf-8')
+          PY
       - name: Commit evidence record
         shell: bash
         run: |
