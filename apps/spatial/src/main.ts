@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { GuestSupervisor, QuickJsGuestEngine } from '@workspace/creative-runtime';
-import { MemoryAssetResolver, PickingResolver, ThreeResourceProjector } from '@workspace/spatial-runtime';
+import { HostAssetResolver, PickingResolver, ThreeResourceProjector } from '@workspace/spatial-runtime';
 import { HostConnection, type HostCommandResponse } from './host/HostConnection.ts';
 import { InteractionController, type EditGateway, type TransformContract } from './interaction/InteractionController.ts';
+import { createTrustedRecoveryControls } from './recovery/TrustedRecoveryControls.ts';
 import { RuntimeCoordinator } from './runtime/RuntimeCoordinator.ts';
 
 export function createTrustedInteraction(projector: ThreeResourceProjector, gateway: EditGateway) {
@@ -12,11 +13,19 @@ export function createTrustedInteraction(projector: ThreeResourceProjector, gate
   };
 }
 
+interface PackageBindingSnapshot {
+  readonly packageId: string;
+  readonly revisionDigest: string;
+  readonly generationToken: string;
+  readonly active: boolean;
+}
+
 interface WorldEntitySnapshot {
   readonly id: string;
   readonly name: string;
   readonly parentId: string | null;
   readonly transform: TransformContract;
+  readonly packageBinding: PackageBindingSnapshot | null;
   readonly revisions: {
     readonly transform: number;
     readonly parameters: number;
@@ -42,6 +51,12 @@ interface ResourceCounts {
 interface DiagnosticsSnapshot extends WorldSnapshot {
   readonly activeGenerationCount: number;
   readonly resourceCounts: ResourceCounts;
+  readonly activePackageRevisions: Record<string, string>;
+  readonly projectedKinds: readonly string[];
+  readonly activePackageEntityId: string | null;
+  readonly packagesPaused: boolean;
+  readonly capabilityGrantCount: number;
+  readonly rendererStatus: string;
 }
 
 interface DragState {
@@ -57,6 +72,13 @@ interface DragState {
 
 interface WorkspaceDiagnostics {
   snapshot(): DiagnosticsSnapshot;
+}
+
+interface PackageRevisionPayload {
+  readonly packageId: string;
+  readonly revisionDigest: string;
+  readonly manifestJson: string;
+  readonly source: string;
 }
 
 declare global {
@@ -109,12 +131,24 @@ const emptyResourceCounts: ResourceCounts = Object.freeze({
 let currentWorld: WorldSnapshot = { worldRevision: 0, entities: {}, activeLeaseCount: 0 };
 let diagnosticCoordinator: RuntimeCoordinator | null = null;
 let diagnosticProjector: ThreeResourceProjector | null = null;
+let rendererStatus = 'not-started';
 window.__workspaceDiagnostics = Object.freeze({
-  snapshot: (): DiagnosticsSnapshot => ({
-    ...structuredClone(currentWorld),
-    activeGenerationCount: diagnosticCoordinator?.activeGenerationCount() ?? 0,
-    resourceCounts: diagnosticProjector?.snapshotCounts() ?? structuredClone(emptyResourceCounts),
-  }),
+  snapshot: (): DiagnosticsSnapshot => {
+    const activeEntities = activePackageEntities(currentWorld);
+    const activeEntity = activeEntities[0];
+    const generationToken = activeEntity ? diagnosticCoordinator?.activeGeneration(activeEntity.id) : undefined;
+    return {
+      ...structuredClone(currentWorld),
+      activeGenerationCount: diagnosticCoordinator?.activeGenerationCount() ?? 0,
+      resourceCounts: diagnosticProjector?.snapshotCounts() ?? structuredClone(emptyResourceCounts),
+      activePackageRevisions: Object.fromEntries(activeEntities.map((entity) => [entity.id, entity.packageBinding!.revisionDigest])),
+      projectedKinds: generationToken && diagnosticProjector ? diagnosticProjector.projectedKinds(generationToken) : [],
+      activePackageEntityId: activeEntity?.id ?? null,
+      packagesPaused: diagnosticCoordinator?.packagesPaused() ?? false,
+      capabilityGrantCount: 0,
+      rendererStatus,
+    };
+  },
 });
 
 void startRuntime();
@@ -124,6 +158,7 @@ async function startRuntime(): Promise<void> {
   const host = fragment.get('host');
   const session = fragment.get('session');
   if (!host || !session) return;
+  const httpBase = trustedHttpBase(host);
 
   const engine = await QuickJsGuestEngine.createForBrowser({
     memoryLimitBytes: 32 * 1024 * 1024,
@@ -133,10 +168,39 @@ async function startRuntime(): Promise<void> {
     maxTransferredBytesPerBatch: 2 * 1024 * 1024,
   });
   const guests = new GuestSupervisor((generationToken, source) => engine.prepare(generationToken, source));
-  const projector = new ThreeResourceProjector(new THREE.Group(), new MemoryAssetResolver());
+
+  const projectionScene = new THREE.Group();
+  const projector = new ThreeResourceProjector(projectionScene, new HostAssetResolver(httpBase, session));
   const coordinator = new RuntimeCoordinator(guests, projector);
   diagnosticProjector = projector;
   diagnosticCoordinator = coordinator;
+
+  const renderScene = new THREE.Scene();
+  renderScene.add(projectionScene);
+  const camera = new THREE.PerspectiveCamera(45, 640 / 360, 0.1, 100);
+  camera.position.set(0, 0, 4);
+  const canvas = document.createElement('canvas');
+  canvas.dataset.workspaceRenderer = 'true';
+  Object.assign(canvas.style, {
+    position: 'absolute',
+    inset: '0',
+    width: '640px',
+    height: '360px',
+    zIndex: '0',
+  });
+  surface.prepend(canvas);
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(1);
+  renderer.setSize(640, 360, false);
+  rendererStatus = 'ready';
+  canvas.addEventListener('webglcontextlost', (event) => {
+    event.preventDefault();
+    rendererStatus = 'context-lost';
+  });
+  canvas.addEventListener('webglcontextrestored', () => {
+    rendererStatus = 'ready';
+  });
+
   const connection = await HostConnection.connect(host, session, coordinator);
 
   const updateActiveLeaseCount = (value: unknown): void => {
@@ -173,7 +237,7 @@ async function startRuntime(): Promise<void> {
     for (const entity of Object.values(world.entities)) {
       projector.roots.createRoot({
         entityId: entity.id,
-        generationToken: `world:${entity.id}`,
+        generationToken: entity.packageBinding?.active ? entity.packageBinding.generationToken : `world:${entity.id}`,
         implementationRevision: entity.revisions.implementation,
       });
     }
@@ -224,16 +288,67 @@ async function startRuntime(): Promise<void> {
           });
         });
       }
+      handle.style.zIndex = '1';
       syncHandle(handle, entity.transform);
     }
   };
+
+  const reconcilePackages = async (world: WorldSnapshot): Promise<void> => {
+    for (const entity of Object.values(world.entities)) {
+      const binding = entity.packageBinding;
+      if (!binding?.active) {
+        coordinator.retireActive(entity.id);
+        continue;
+      }
+      if (coordinator.activeGeneration(entity.id) === binding.generationToken) continue;
+      coordinator.retireActive(entity.id);
+      const revision = await fetchPackageRevision(httpBase, session, binding.revisionDigest);
+      const prepared = await coordinator.prepare({
+        type: 'runtime.prepare',
+        protocolVersion: 1,
+        candidateId: `reconstruct:${entity.id}:${binding.generationToken}`,
+        entityId: entity.id,
+        generationToken: binding.generationToken,
+        source: revision.source,
+        manifestJson: revision.manifestJson,
+      });
+      if (prepared.type !== 'runtime.prepared') {
+        throw new Error(prepared.errorCode ?? 'package_prepare_failed');
+      }
+      coordinator.activate({
+        type: 'runtime.activate',
+        protocolVersion: 1,
+        entityId: entity.id,
+        revisionDigest: binding.revisionDigest,
+        generationToken: binding.generationToken,
+      });
+    }
+  };
+
+  controls.append(createTrustedRecoveryControls({
+    packagesPaused: () => coordinator.packagesPaused(),
+    setPackagesPaused: (paused) => coordinator.setPackagesPaused(paused),
+    async disableCurrentPackage() {
+      const entity = activePackageEntities(currentWorld)[0];
+      if (!entity?.packageBinding) return;
+      const response = await connection.command('package.disable', {
+        entityId: entity.id,
+        expectedImplementationRevision: entity.revisions.implementation,
+      });
+      if (!response.accepted) throw new Error(response.errorCode ?? 'package_disable_rejected');
+      coordinator.retireActive(entity.id);
+      applyWorld(worldFrom(response));
+    },
+  }));
 
   undoButton.addEventListener('click', () => {
     void (async () => {
       if (pendingCommit) await pendingCommit;
       const response = await connection.command('history.undo');
       if (!response.accepted) throw new Error(response.errorCode ?? 'undo_rejected');
-      applyWorld(worldFrom(response));
+      const world = worldFrom(response);
+      applyWorld(world);
+      await reconcilePackages(world);
     })();
   });
 
@@ -243,15 +358,61 @@ async function startRuntime(): Promise<void> {
       if (pendingCommit) await pendingCommit;
       const response = await connection.command('workspace.save');
       if (!response.accepted) throw new Error(response.errorCode ?? 'save_rejected');
-      applyWorld(worldFrom(response));
+      const world = worldFrom(response);
+      applyWorld(world);
+      await reconcilePackages(world);
       saveStatus.textContent = 'saved';
     })();
   });
 
   const initial = await connection.command('world.read');
   if (!initial.accepted) throw new Error(initial.errorCode ?? 'world_read_rejected');
-  applyWorld(worldFrom(initial));
+  const initialWorld = worldFrom(initial);
+  applyWorld(initialWorld);
+  await reconcilePackages(initialWorld);
   appRoot.dataset.runtime = 'connected';
+
+  const frame = (time: number): void => {
+    if (rendererStatus === 'ready') {
+      coordinator.tick(time);
+      renderer.render(renderScene, camera);
+    }
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+}
+
+async function fetchPackageRevision(baseUrl: string, sessionToken: string, revisionDigest: string): Promise<PackageRevisionPayload> {
+  if (!/^[0-9a-f]{64}$/.test(revisionDigest)) throw new Error('invalid_revision_digest');
+  const response = await fetch(`${baseUrl}/packages/revision/${revisionDigest}`, {
+    headers: { 'x-workspace-session': sessionToken },
+  });
+  if (!response.ok) throw new Error(response.status === 403 ? 'package_revision_not_authorized' : 'package_revision_fetch_failed');
+  const payload = await response.json() as Partial<PackageRevisionPayload>;
+  if (typeof payload.packageId !== 'string'
+    || payload.revisionDigest !== revisionDigest
+    || typeof payload.manifestJson !== 'string'
+    || typeof payload.source !== 'string') {
+    throw new Error('package_revision_payload_invalid');
+  }
+  return payload as PackageRevisionPayload;
+}
+
+function trustedHttpBase(webSocketUrl: string): string {
+  const url = new URL(webSocketUrl);
+  if (url.protocol === 'ws:') url.protocol = 'http:';
+  else if (url.protocol === 'wss:') url.protocol = 'https:';
+  else throw new Error('host_websocket_url_invalid');
+  url.pathname = '';
+  url.search = '';
+  url.hash = '';
+  return url.toString().replace(/\/$/, '');
+}
+
+function activePackageEntities(world: WorldSnapshot): WorldEntitySnapshot[] {
+  return Object.values(world.entities)
+    .filter((entity) => entity.packageBinding?.active === true)
+    .sort((left, right) => left.id.localeCompare(right.id));
 }
 
 async function finishDrag(

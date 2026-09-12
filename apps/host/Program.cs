@@ -3,9 +3,11 @@ using System.Text;
 using System.Text.Json;
 using Workspace.Core.Commands;
 using Workspace.Core.History;
+using Workspace.Core.Ports;
 using Workspace.Core.World;
 using Workspace.Host.Composition;
 using Workspace.Host.Protocol;
+using Workspace.Runtime.Packages;
 using Workspace.Storage.Sqlite;
 
 var options = HostRuntimeOptions.Parse(args);
@@ -16,10 +18,23 @@ var stateRoot = options.StateRoot ?? Path.Combine(
     "WorkspaceEnvironmentVNext");
 var databasePath = Path.Combine(stateRoot, "workspace-vnext.db");
 await using var store = await SqliteWorldStore.OpenAsync(databasePath);
+var packageRevisions = new SqlitePackageRevisionStore(databasePath);
 var initial = await store.LoadAsync(CancellationToken.None);
 if (options.Acceptance && initial.Entities.Count == 0)
 {
-    var box = WorldEntity.Create("entity:box", "Box");
+    var packageDirectory = FindAcceptancePackageDirectory();
+    var manifestJson = await File.ReadAllTextAsync(Path.Combine(packageDirectory, "manifest.json"));
+    var source = (await File.ReadAllTextAsync(Path.Combine(packageDirectory, "index.js"))).Replace("\r\n", "\n", StringComparison.Ordinal);
+    var revisionDigest = PackageDigest.Compute(manifestJson, source);
+    var generationToken = $"generation:m1-breadth:{revisionDigest[..16]}";
+    await packageRevisions.StagePackageRevisionAsync(
+        new PackageRevisionArtifact("pkg:m1-breadth", revisionDigest, manifestJson, source),
+        CancellationToken.None);
+
+    var box = WorldEntity.Create("entity:box", "Box") with
+    {
+        PackageBinding = new PackageBinding("pkg:m1-breadth", revisionDigest, generationToken, true),
+    };
     initial = new WorldState(new Dictionary<string, WorldEntity>(StringComparer.Ordinal)
     {
         [box.Id] = box,
@@ -31,8 +46,52 @@ var commands = new WorkspaceCommandService(engine, store);
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls($"http://127.0.0.1:{options.Port}");
+builder.Services.AddCors(cors => cors.AddPolicy("trusted-spatial", policy => policy
+    .SetIsOriginAllowed(origin => Uri.TryCreate(origin, UriKind.Absolute, out var uri) && uri.IsLoopback)
+    .AllowAnyMethod()
+    .AllowAnyHeader()));
 var app = builder.Build();
+app.UseCors("trusted-spatial");
 app.UseWebSockets();
+
+
+const string acceptanceAssetHandle = "asset:sha256:c21b35e3f28e676cedf24c13575a7346682e101a2d26aad9598d0cdbcee9ee3b";
+var acceptanceAssetRgba = new byte[]
+{
+    255, 0, 0, 255,
+    0, 255, 0, 255,
+    0, 0, 255, 255,
+    255, 255, 255, 255,
+};
+
+app.MapGet("/assets/resolve", (HttpContext context) =>
+{
+    if (!TryAuthorizeHttp(context, composition.Sessions)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+    var handle = context.Request.Query["handle"].ToString();
+    if (!IsHostAssetHandle(handle)) return Results.BadRequest(new { error = "invalid_host_asset_handle" });
+    if (!string.Equals(handle, acceptanceAssetHandle, StringComparison.Ordinal)) return Results.NotFound();
+    return Results.Json(new
+    {
+        width = 2,
+        height = 2,
+        rgbaBase64 = Convert.ToBase64String(acceptanceAssetRgba),
+    });
+});
+
+app.MapGet("/packages/revision/{digest}", async (string digest, HttpContext context) =>
+{
+    if (!TryAuthorizeHttp(context, composition.Sessions)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+    if (!IsSha256Digest(digest)) return Results.BadRequest(new { error = "invalid_revision_digest" });
+    var revision = await packageRevisions.LoadPackageRevisionAsync(digest, context.RequestAborted);
+    if (revision is null) return Results.NotFound();
+    return Results.Json(new
+    {
+        packageId = revision.PackageId,
+        revisionDigest = revision.RevisionDigest,
+        manifestJson = revision.ManifestJson,
+        source = revision.Source,
+    });
+});
 
 var endpoint = new WorkspaceSocketEndpoint(
     _ => null,
@@ -109,6 +168,33 @@ static bool TryReadHello(string? json, out string? token)
     }
     catch (JsonException) { return false; }
 }
+
+static string FindAcceptancePackageDirectory()
+{
+    for (var directory = new DirectoryInfo(Directory.GetCurrentDirectory()); directory is not null; directory = directory.Parent)
+    {
+        var candidate = Path.Combine(directory.FullName, "examples", "world-packages", "m1-breadth");
+        if (File.Exists(Path.Combine(candidate, "manifest.json")) && File.Exists(Path.Combine(candidate, "index.js")))
+            return candidate;
+    }
+    throw new DirectoryNotFoundException("M1 breadth package fixture was not found from the host working directory.");
+}
+
+static bool TryAuthorizeHttp(HttpContext context, SessionAuthenticator sessions)
+{
+    var token = context.Request.Headers["x-workspace-session"].ToString();
+    return !string.IsNullOrWhiteSpace(token) && sessions.TryAuthorize(token, out _);
+}
+
+static bool IsHostAssetHandle(string value)
+{
+    const string prefix = "asset:sha256:";
+    return value.StartsWith(prefix, StringComparison.Ordinal)
+        && IsSha256Digest(value[prefix.Length..]);
+}
+
+static bool IsSha256Digest(string value) => value.Length == 64 && value.All(static character =>
+    character is >= '0' and <= '9' or >= 'a' and <= 'f');
 
 static async Task<string?> ReceiveTextAsync(WebSocket socket, CancellationToken cancellationToken)
 {

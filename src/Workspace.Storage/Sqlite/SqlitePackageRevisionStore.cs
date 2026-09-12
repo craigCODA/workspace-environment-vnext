@@ -7,6 +7,40 @@ public sealed class SqlitePackageRevisionStore(string databasePath) : IPackageRe
 {
     private readonly string _databasePath = Path.GetFullPath(databasePath);
 
+    public async Task<PackageRevisionArtifact?> LoadPackageRevisionAsync(string revisionDigest, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(revisionDigest)) throw new ArgumentException("Revision digest is required.", nameof(revisionDigest));
+
+        await using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+        {
+            DataSource = _databasePath,
+            Mode = SqliteOpenMode.ReadWriteCreate,
+            Cache = SqliteCacheMode.Shared,
+        }.ToString());
+        await connection.OpenAsync(cancellationToken);
+
+        await using (var schema = connection.CreateCommand())
+        {
+            schema.CommandText = SqliteSchema.Create;
+            await schema.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT r.package_id, r.manifest_json, b.content
+            FROM package_revisions r
+            JOIN package_blobs b ON b.digest = r.source_digest
+            WHERE r.digest = $digest
+            LIMIT 1;
+            """;
+        command.Parameters.AddWithValue("$digest", revisionDigest);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken)) return null;
+
+        var source = System.Text.Encoding.UTF8.GetString((byte[])reader[2]);
+        return new PackageRevisionArtifact(reader.GetString(0), revisionDigest, reader.GetString(1), source);
+    }
+
     public async Task StagePackageRevisionAsync(PackageRevisionArtifact revision, CancellationToken cancellationToken)
     {
         await using var connection = new SqliteConnection(new SqliteConnectionStringBuilder

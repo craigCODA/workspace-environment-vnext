@@ -59,6 +59,7 @@ public sealed class WorkspaceCommandService
                 "history.undo" => await RunHistoryAsync(new HistoryUndoCommand(message.RequestId), context, cancellationToken),
                 "history.redo" => await RunHistoryAsync(new HistoryRedoCommand(message.RequestId), context, cancellationToken),
                 "workspace.save" => await SaveAsync(context, cancellationToken),
+                "package.disable" => await DisablePackageAsync(message, context, cancellationToken),
                 _ => HostCommandDispatchResult.Reject("command_not_wired"),
             };
         }
@@ -151,6 +152,24 @@ public sealed class WorkspaceCommandService
         return HostCommandDispatchResult.Accept(WorldPayload(_engine.Current));
     }
 
+    private async ValueTask<HostCommandDispatchResult> DisablePackageAsync(
+        HostCommandMessage message,
+        CommandContext context,
+        CancellationToken cancellationToken)
+    {
+        if (!context.Trusted) return HostCommandDispatchResult.Reject("forbidden_trusted_command");
+        if (!TryString(message.Payload, "entityId", out var entityId)
+            || !TryInt64(message.Payload, "expectedImplementationRevision", out var expectedRevision))
+            return HostCommandDispatchResult.Reject("invalid_payload");
+
+        var command = new PackageDisableCommand(
+            message.RequestId,
+            entityId!,
+            new Dictionary<RevisionPlane, long> { [RevisionPlane.Implementation] = expectedRevision });
+        var result = await _engine.ExecuteAsync(command, context, cancellationToken);
+        return FromCommandResult(result);
+    }
+
     private HostCommandDispatchResult FromCommandResult(CommandResult result) => result.Accepted
         ? HostCommandDispatchResult.Accept(WorldPayload(result.State))
         : HostCommandDispatchResult.Reject(result.ErrorCode ?? "command_rejected", WorldPayload(result.State));
@@ -169,6 +188,13 @@ public sealed class WorkspaceCommandService
                     position = new[] { pair.Value.Transform.Position.X, pair.Value.Transform.Position.Y, pair.Value.Transform.Position.Z },
                     rotation = new[] { pair.Value.Transform.Rotation.X, pair.Value.Transform.Rotation.Y, pair.Value.Transform.Rotation.Z, pair.Value.Transform.Rotation.W },
                     scale = new[] { pair.Value.Transform.Scale.X, pair.Value.Transform.Scale.Y, pair.Value.Transform.Scale.Z },
+                },
+                packageBinding = pair.Value.PackageBinding is null ? null : new
+                {
+                    packageId = pair.Value.PackageBinding.PackageId,
+                    revisionDigest = pair.Value.PackageBinding.RevisionDigest,
+                    generationToken = pair.Value.PackageBinding.GenerationToken,
+                    active = pair.Value.PackageBinding.Active,
                 },
                 revisions = new
                 {

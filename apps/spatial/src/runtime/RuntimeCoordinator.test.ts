@@ -172,3 +172,40 @@ test('100 activation cycles retire all resources and guest generations', async (
     assert.equal(guests.aliveCount(), 0);
   }
 });
+
+test('Task11 trusted pause stops guest ticks and active generation can be retired by entity', async () => {
+  const scene = new THREE.Group();
+  const projector = new ThreeResourceProjector(scene, new MemoryAssetResolver(), new EntityRootRegistry());
+  const tickFactory: PreparedGuestFactory = async (generationToken) => ({
+    generationToken,
+    initialDescriptors: [
+      { kind: 'points', id: 'procedural', positions: [0, 0, 0], color: '#ffffff', size: 0.05 },
+    ],
+    tick: (monotonicMs) => [
+      { kind: 'update', id: 'procedural', patch: { positions: [0, monotonicMs / 100, 0] } },
+    ],
+    dispose: () => undefined,
+  });
+  const coordinator = new RuntimeCoordinator(new GuestSupervisor(tickFactory), projector);
+  const prepare = await coordinator.prepare({
+    type: 'runtime.prepare', protocolVersion: 1, candidateId: 'candidate:procedural',
+    entityId: 'entity:procedural', generationToken: 'generation:procedural', source: 'P', manifestJson: '{}',
+  });
+  assert.equal(prepare.type, 'runtime.prepared');
+  coordinator.activate({
+    type: 'runtime.activate', protocolVersion: 1, entityId: 'entity:procedural',
+    revisionDigest: 'sha256:procedural', generationToken: 'generation:procedural',
+  });
+
+  (coordinator as unknown as { tick(monotonicMs: number): void }).tick(100);
+  const points = projector.getResource('generation:procedural', 'procedural');
+  assert.ok(points instanceof THREE.Points);
+  assert.deepEqual([...points.geometry.getAttribute('position').array], [0, 1, 0]);
+
+  (coordinator as unknown as { setPackagesPaused(paused: boolean): void }).setPackagesPaused(true);
+  (coordinator as unknown as { tick(monotonicMs: number): void }).tick(200);
+  assert.deepEqual([...points.geometry.getAttribute('position').array], [0, 1, 0]);
+
+  (coordinator as unknown as { retireActive(entityId: string): void }).retireActive('entity:procedural');
+  assert.equal(coordinator.activeGenerationCount(), 0);
+});

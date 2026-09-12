@@ -19,11 +19,11 @@ interface DiagnosticsSnapshot {
 
 let state: AcceptanceState;
 
-test.beforeAll(async () => {
+test.beforeEach(async () => {
   state = await startAcceptanceState();
 });
 
-test.afterAll(async () => {
+test.afterEach(async () => {
   await state?.stop();
 });
 
@@ -35,7 +35,7 @@ test('A35 saved active package reconstructs after WebGL context loss and rendere
 
   const before = await diagnostics(page);
   const revision = before.activePackageRevisions?.['entity:box'];
-  expect(revision).toMatch(/^sha256:[0-9a-f]{64}$/);
+  expect(revision).toMatch(/^[0-9a-f]{64}$/);
   expect(before.resourceCounts.resources).toBeGreaterThanOrEqual(7);
 
   const lost = await page.evaluate(() => {

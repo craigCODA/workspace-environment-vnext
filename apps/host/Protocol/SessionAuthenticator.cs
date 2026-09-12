@@ -12,6 +12,7 @@ public sealed class SessionAuthenticator
     private readonly object _gate = new();
     private readonly Dictionary<string, AuthenticatedSession> _pending = new(StringComparer.Ordinal);
     private readonly Dictionary<string, AuthenticatedSession> _reusableAcceptance = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, AuthenticatedSession> _active = new(StringComparer.Ordinal);
 
     public string Issue(string actorId = "user:local", string actorKind = "user")
     {
@@ -38,7 +39,17 @@ public sealed class SessionAuthenticator
         {
             if (_reusableAcceptance.TryGetValue(token, out session)) return true;
             if (!_pending.Remove(token, out session)) return false;
+            _active[token] = session;
             return true;
+        }
+    }
+
+    public bool TryAuthorize(string token, out AuthenticatedSession? session)
+    {
+        lock (_gate)
+        {
+            if (_reusableAcceptance.TryGetValue(token, out session)) return true;
+            return _active.TryGetValue(token, out session);
         }
     }
 

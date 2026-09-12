@@ -78,6 +78,7 @@ test('A52 save during an unfinished drag recovers accepted state without a zombi
   await expect(reopened.getByTestId('agent-network-calls')).toHaveText('0');
 });
 
+
 test('A47 breadth package projects all M1 descriptor families and reconstructs on reload', async ({ page }) => {
   const webglErrors: string[] = [];
   page.on('console', (message) => {
@@ -90,7 +91,7 @@ test('A47 breadth package projects all M1 descriptor families and reconstructs o
 
   const before = await diagnosticSnapshot(page);
   expect(before.activePackageEntityId).toBe('entity:box');
-  expect(before.activePackageRevisions?.['entity:box']).toMatch(/^sha256:[0-9a-f]{64}$/);
+  expect(before.activePackageRevisions?.['entity:box']).toMatch(/^[0-9a-f]{64}$/);
   expect([...(before.projectedKinds ?? [])].sort()).toEqual([
     'curve', 'indexedGeometry', 'instanced', 'light', 'points', 'shaderMaterial', 'texture',
   ]);
@@ -114,12 +115,12 @@ test('Task10 diagnostics are deterministic and read only', async ({ page }) => {
 
   const snapshot = await diagnosticSnapshot(page);
   expect(snapshot.activeLeaseCount).toBe(0);
-  expect(snapshot.activeGenerationCount).toBe(0);
+  expect(snapshot.activeGenerationCount).toBe(1);
   expect(snapshot.resourceCounts).toEqual({
-    generations: 0,
-    resources: 0,
-    stagedGroups: 0,
-    activeEntities: 0,
+    generations: 1,
+    resources: 8,
+    stagedGroups: 1,
+    activeEntities: 1,
   });
 
   const diagnosticKeys = await page.evaluate(() => Object.keys((window as Window & {
