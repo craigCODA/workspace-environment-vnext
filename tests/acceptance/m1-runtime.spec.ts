@@ -11,6 +11,12 @@ type Pose = typeof initialPose;
 
 interface DiagnosticsSnapshot {
   readonly entities: Record<string, { transform: Pose }>;
+  readonly activePackageRevisions?: Record<string, string>;
+  readonly projectedKinds?: readonly string[];
+  readonly activePackageEntityId?: string | null;
+  readonly packagesPaused?: boolean;
+  readonly capabilityGrantCount?: number;
+  readonly rendererStatus?: string;
   readonly activeLeaseCount?: number;
   readonly activeGenerationCount?: number;
   readonly resourceCounts?: {
@@ -70,6 +76,37 @@ test('A52 save during an unfinished drag recovers accepted state without a zombi
   await reopened.getByRole('button', { name: 'Undo' }).click();
   await expectEntityPose(reopened, 'entity:box', initialPose);
   await expect(reopened.getByTestId('agent-network-calls')).toHaveText('0');
+});
+
+test('A47 breadth package projects all M1 descriptor families and reconstructs on reload', async ({ page }) => {
+  const webglErrors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error' && /webgl/i.test(message.text())) webglErrors.push(message.text());
+  });
+
+  await page.goto(state.appUrl);
+  await expect(page.locator('canvas[data-workspace-renderer]')).toBeVisible();
+  await expect.poll(async () => (await diagnosticSnapshot(page)).activeGenerationCount).toBe(1);
+
+  const before = await diagnosticSnapshot(page);
+  expect(before.activePackageEntityId).toBe('entity:box');
+  expect(before.activePackageRevisions?.['entity:box']).toMatch(/^sha256:[0-9a-f]{64}$/);
+  expect([...(before.projectedKinds ?? [])].sort()).toEqual([
+    'curve', 'indexedGeometry', 'instanced', 'light', 'points', 'shaderMaterial', 'texture',
+  ]);
+  expect(before.rendererStatus).toBe('ready');
+  expect(webglErrors).toEqual([]);
+
+  const revision = before.activePackageRevisions?.['entity:box'];
+  await page.reload();
+  await expect.poll(async () => (await diagnosticSnapshot(page)).activeGenerationCount).toBe(1);
+  const after = await diagnosticSnapshot(page);
+  expect(after.activePackageEntityId).toBe('entity:box');
+  expect(after.activePackageRevisions?.['entity:box']).toBe(revision);
+  expect([...(after.projectedKinds ?? [])].sort()).toEqual([
+    'curve', 'indexedGeometry', 'instanced', 'light', 'points', 'shaderMaterial', 'texture',
+  ]);
+  expect(webglErrors).toEqual([]);
 });
 
 test('Task10 diagnostics are deterministic and read only', async ({ page }) => {
