@@ -24,7 +24,13 @@ jobs:
           import base64, gzip, hashlib, json, pathlib
           root = pathlib.Path('.github/m2a-stage')
           manifest = json.loads((root/'ready.json').read_text())
-          data = ''.join((root/name).read_text().strip() for name in manifest['parts'])
+          parts = []
+          for name in manifest['parts']:
+              text = (root/name).read_text().strip()
+              for old, new in manifest.get('transportCorrections', {}).get(name, []):
+                  text = text.replace(old, new)
+              parts.append(text)
+          data = ''.join(parts)
           patch = gzip.decompress(base64.b64decode(data, validate=True))
           assert hashlib.sha256(patch).hexdigest() == manifest['sha256'], 'Patch integrity mismatch'
           pathlib.Path('/tmp/m2a.patch').write_bytes(patch)
