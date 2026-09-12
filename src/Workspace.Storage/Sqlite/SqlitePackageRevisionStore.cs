@@ -11,12 +11,7 @@ public sealed class SqlitePackageRevisionStore(string databasePath) : IPackageRe
     {
         if (string.IsNullOrWhiteSpace(revisionDigest)) throw new ArgumentException("Revision digest is required.", nameof(revisionDigest));
 
-        await using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
-        {
-            DataSource = _databasePath,
-            Mode = SqliteOpenMode.ReadWriteCreate,
-            Cache = SqliteCacheMode.Shared,
-        }.ToString());
+        await using var connection = new SqliteConnection(CreateConnectionString());
         await connection.OpenAsync(cancellationToken);
 
         await using (var schema = connection.CreateCommand())
@@ -43,12 +38,7 @@ public sealed class SqlitePackageRevisionStore(string databasePath) : IPackageRe
 
     public async Task StagePackageRevisionAsync(PackageRevisionArtifact revision, CancellationToken cancellationToken)
     {
-        await using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
-        {
-            DataSource = _databasePath,
-            Mode = SqliteOpenMode.ReadWriteCreate,
-            Cache = SqliteCacheMode.Shared,
-        }.ToString());
+        await using var connection = new SqliteConnection(CreateConnectionString());
         await connection.OpenAsync(cancellationToken);
 
         await using (var schema = connection.CreateCommand())
@@ -86,4 +76,12 @@ public sealed class SqlitePackageRevisionStore(string databasePath) : IPackageRe
 
         await transaction.CommitAsync(cancellationToken);
     }
+
+    private string CreateConnectionString() => new SqliteConnectionStringBuilder
+    {
+        DataSource = _databasePath,
+        Mode = SqliteOpenMode.ReadWriteCreate,
+        Cache = SqliteCacheMode.Shared,
+        Pooling = false,
+    }.ToString();
 }
