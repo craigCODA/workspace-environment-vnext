@@ -36,3 +36,24 @@ The old prototype CI workflow was intentionally not migrated. M1 adds CI for the
 ## M1 execution
 
 Start from `main`, create an isolated worktree/branch named `m1/runtime-foundation`, and execute the M1 plan with TDD and its required acceptance evidence. Do not implement M2, OpenCode integration, voice replacement, or the full Windows-product migration as part of M1.
+
+## vNext M2A desktop shell
+
+The M2A implementation lives on `m2/spatial-workspace-shell`. From a clean source checkout on Windows with Node 24+ and the .NET 8 SDK:
+
+```powershell
+npm ci
+npm run electron
+```
+
+`npm run electron` builds the vNext Three.js client and Windows host, then opens Workspace Environment fullscreen on the primary monitor. Windows/Alt+Tab behavior remains available; this is not kiosk mode and does not replace the Windows shell.
+
+To create the Windows distribution:
+
+```powershell
+npm run dist:win
+```
+
+The build stages a self-contained `Workspace.Host.Windows.exe` with the reviewed M2A brick fixture, builds the vNext spatial client, and runs electron-builder. Successful output includes `dist/win-unpacked/Workspace Environment.exe` plus `dist/Workspace Environment Setup <version>.exe`.
+
+The current M2A room checkpoint still has a placeholder application screen until Task 4 live generic surface streaming/input is completed. The Electron shell does not add per-application adapters.
