@@ -81,13 +81,22 @@ test('A52 save during an unfinished drag recovers accepted state without a zombi
 
 test('A47 breadth package projects all M1 descriptor families and reconstructs on reload', async ({ page }) => {
   const webglErrors: string[] = [];
+  const startupErrors: string[] = [];
   page.on('console', (message) => {
+    if (message.type() === 'error') startupErrors.push(`console:${message.text()}`);
     if (message.type() === 'error' && /webgl/i.test(message.text())) webglErrors.push(message.text());
   });
+  page.on('pageerror', (error) => startupErrors.push(`pageerror:${error.message}`));
+  page.on('requestfailed', (request) => startupErrors.push(`requestfailed:${request.url()}:${request.failure()?.errorText ?? 'unknown'}`));
 
   await page.goto(state.appUrl);
   await expect(page.locator('canvas[data-workspace-renderer]')).toBeVisible();
-  await expect.poll(async () => (await diagnosticSnapshot(page)).activeGenerationCount).toBe(1);
+  await page.waitForTimeout(1500);
+  const startup = await diagnosticSnapshot(page);
+  if (startup.activeGenerationCount !== 1) {
+    const runtime = await page.locator('#app').getAttribute('data-runtime');
+    throw new Error(`task11_startup_failed:${JSON.stringify({ runtime, startup, startupErrors })}`);
+  }
 
   const before = await diagnosticSnapshot(page);
   expect(before.activePackageEntityId).toBe('entity:box');
