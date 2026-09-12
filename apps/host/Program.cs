@@ -9,13 +9,15 @@ using Workspace.Host.Composition;
 using Workspace.Host.Protocol;
 using Workspace.Runtime.Packages;
 using Workspace.Storage.Sqlite;
+using Workspace.Host.M2A;
+using Workspace.Runtime.Applications;
 
 var options = HostRuntimeOptions.Parse(args);
 var composition = new VNextComposition();
 var sessionToken = composition.InitializeSession(options);
 var stateRoot = options.StateRoot ?? Path.Combine(
     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-    "WorkspaceEnvironmentVNext");
+    "WorkspaceEnvironmentVNext", options.M2A ? "M2A" : "");
 var databasePath = Path.Combine(stateRoot, "workspace-vnext.db");
 await using var store = await SqliteWorldStore.OpenAsync(databasePath);
 var packageRevisions = new SqlitePackageRevisionStore(databasePath);
@@ -41,18 +43,31 @@ if (options.Acceptance && initial.Entities.Count == 0)
     }, 0);
     await store.PersistAcceptedAsync(initial, null, CancellationToken.None);
 }
+if (options.M2A) initial = await M2AWorld.SeedAsync(initial, store, packageRevisions, CancellationToken.None);
+IApplicationPlatform platform = new UnavailableApplicationPlatform();
+#if WINDOWS
+if (options.M2A) platform = new Workspace.Windows.WindowsApplicationPlatform(options.ParentProcessId);
+#endif
+await using var applications = options.M2A ? new ApplicationSurfaceService(platform) : null;
 var engine = new WorldEngine(initial, store);
-var commands = new WorkspaceCommandService(engine, store);
+var commands = new WorkspaceCommandService(engine, store) { Applications = applications };
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls($"http://127.0.0.1:{options.Port}");
 builder.Services.AddCors(cors => cors.AddPolicy("trusted-spatial", policy => policy
-    .SetIsOriginAllowed(origin => Uri.TryCreate(origin, UriKind.Absolute, out var uri) && uri.IsLoopback)
+    .SetIsOriginAllowed(origin => options.AllowedOrigin is not null
+        ? string.Equals(origin, options.AllowedOrigin, StringComparison.Ordinal)
+        : Uri.TryCreate(origin, UriKind.Absolute, out var uri) && uri.IsLoopback && uri.Scheme is "http" or "https")
     .AllowAnyMethod()
-    .AllowAnyHeader()));
+    .AllowAnyHeader()
+    .WithExposedHeaders("X-Workspace-Capture", "X-Frame-Sequence", "X-Frame-Width", "X-Frame-Height")));
+if (options.M2A) builder.WebHost.ConfigureKestrel(server => server.Limits.MaxRequestBodySize = 64 * 1024);
 var app = builder.Build();
 app.UseCors("trusted-spatial");
 app.UseWebSockets();
+app.MapGet("/health", () => Results.Json(new { status = "ready", profile = options.M2A ? "m2a" : "m1" }));
+if (options.M2A) M2AEndpoints.Map(app, commands, composition.Sessions);
+if (options.ParentProcessId is int parentId) _ = M2AEndpoints.MonitorParentAsync(parentId, app.Lifetime);
 
 
 const string acceptanceAssetHandle = "asset:sha256:c21b35e3f28e676cedf24c13575a7346682e101a2d26aad9598d0cdbcee9ee3b";
@@ -105,6 +120,13 @@ app.Map("/workspace", async context =>
         return;
     }
 
+    var origin = context.Request.Headers.Origin.ToString();
+    if (options.M2A && options.AllowedOrigin is not null && origin.Length > 0
+        && !string.Equals(origin, options.AllowedOrigin, StringComparison.Ordinal))
+    {
+        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+        return;
+    }
     using var socket = await context.WebSockets.AcceptWebSocketAsync();
     var hello = await ReceiveTextAsync(socket, context.RequestAborted);
     if (!TryReadHello(hello, out var token) || !composition.Sessions.TryConsume(token!, out var session) || session is null)
@@ -146,6 +168,7 @@ app.Map("/workspace", async context =>
     finally
     {
         commands.ReleaseSessionLeases(connectionSession.SessionId);
+        if (applications is not null) await applications.ReleaseSessionAsync(session.SessionId, CancellationToken.None);
     }
 });
 

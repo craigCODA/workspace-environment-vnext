@@ -12,6 +12,7 @@ public sealed class SessionAuthenticator
     private readonly object _gate = new();
     private readonly Dictionary<string, AuthenticatedSession> _pending = new(StringComparer.Ordinal);
     private readonly Dictionary<string, AuthenticatedSession> _reusableAcceptance = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, AuthenticatedSession> _desktop = new(StringComparer.Ordinal);
     private readonly Dictionary<string, AuthenticatedSession> _active = new(StringComparer.Ordinal);
 
     public string Issue(string actorId = "user:local", string actorKind = "user")
@@ -20,6 +21,14 @@ public sealed class SessionAuthenticator
         RandomNumberGenerator.Fill(bytes);
         var token = Base64Url(bytes);
         Register(token, new AuthenticatedSession($"session:{Guid.NewGuid():N}", actorId, actorKind));
+        return token;
+    }
+
+    // Desktop tokens live only for this host process. They allow an intentional renderer reload.
+    public string IssueDesktopToken()
+    {
+        var token = Base64Url(RandomNumberGenerator.GetBytes(32));
+        lock (_gate) _desktop.Add(token, new AuthenticatedSession($"session:{Guid.NewGuid():N}", "user:desktop", "user"));
         return token;
     }
 
@@ -37,6 +46,7 @@ public sealed class SessionAuthenticator
     {
         lock (_gate)
         {
+            if (_desktop.TryGetValue(token, out session)) return true;
             if (_reusableAcceptance.TryGetValue(token, out session)) return true;
             if (!_pending.Remove(token, out session)) return false;
             _active[token] = session;
@@ -48,6 +58,7 @@ public sealed class SessionAuthenticator
     {
         lock (_gate)
         {
+            if (_desktop.TryGetValue(token, out session)) return true;
             if (_reusableAcceptance.TryGetValue(token, out session)) return true;
             return _active.TryGetValue(token, out session);
         }

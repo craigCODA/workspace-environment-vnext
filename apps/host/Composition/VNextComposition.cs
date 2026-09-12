@@ -13,6 +13,6 @@ public sealed class VNextComposition
             Sessions.RegisterAcceptanceToken(options.SessionToken);
             return options.SessionToken;
         }
-        return Sessions.Issue();
+        return options.M2A ? Sessions.IssueDesktopToken() : Sessions.Issue();
     }
 }

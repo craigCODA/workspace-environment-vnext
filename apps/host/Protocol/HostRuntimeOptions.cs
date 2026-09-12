@@ -1,6 +1,6 @@
 namespace Workspace.Host.Protocol;
 
-public sealed record HostRuntimeOptions(bool Acceptance, string? SessionToken, string? StateRoot, int Port)
+public sealed record HostRuntimeOptions(bool Acceptance, string? SessionToken, string? StateRoot, int Port, bool M2A = false, int? ParentProcessId = null, string? AllowedOrigin = null)
 {
     public static HostRuntimeOptions Parse(string[] args)
     {
@@ -14,7 +14,11 @@ public sealed record HostRuntimeOptions(bool Acceptance, string? SessionToken, s
             throw new InvalidOperationException("--session-token is accepted only with --acceptance.");
         if (port is < 1 or > 65535) throw new ArgumentOutOfRangeException(nameof(args), "Port must be 1..65535.");
 
-        return new HostRuntimeOptions(acceptance, token, stateRoot, port);
+        var m2a = args.Contains("--m2a", StringComparer.Ordinal);
+        var parentText = Value(args, "--parent-process");
+        int? parent = parentText is null ? null : int.Parse(parentText, System.Globalization.CultureInfo.InvariantCulture);
+        if (parent is <= 0) throw new ArgumentException("Parent process must be positive.");
+        return new HostRuntimeOptions(acceptance, token, stateRoot, port, m2a, parent, Value(args, "--allowed-origin"));
     }
 
     private static string? Value(string[] args, string key)

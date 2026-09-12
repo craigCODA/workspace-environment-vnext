@@ -5,7 +5,7 @@ using Workspace.Core.World;
 
 namespace Workspace.Host.Protocol;
 
-public sealed class WorkspaceCommandService
+public sealed partial class WorkspaceCommandService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly WorldEngine _engine;
@@ -60,7 +60,7 @@ public sealed class WorkspaceCommandService
                 "history.redo" => await RunHistoryAsync(new HistoryRedoCommand(message.RequestId), context, cancellationToken),
                 "workspace.save" => await SaveAsync(context, cancellationToken),
                 "package.disable" => await DisablePackageAsync(message, context, cancellationToken),
-                _ => HostCommandDispatchResult.Reject("command_not_wired"),
+                _ => await DispatchM2AAsync(message, context, cancellationToken),
             };
         }
         finally
@@ -105,7 +105,8 @@ public sealed class WorkspaceCommandService
         lock (_leaseGate)
         {
             _leases.TryGetValue(leaseId!, out lease);
-            if (lease is not null) _leases.Remove(leaseId!);
+            if (lease is not null && string.Equals(lease.SessionId, context.SessionId, StringComparison.Ordinal))
+                _leases.Remove(leaseId!);
         }
         if (lease is null) return HostCommandDispatchResult.Reject("edit_lease_not_found");
         if (!string.Equals(lease.SessionId, context.SessionId, StringComparison.Ordinal))
@@ -183,6 +184,7 @@ public sealed class WorkspaceCommandService
                 id = pair.Value.Id,
                 name = pair.Value.Name,
                 parentId = pair.Value.ParentId,
+                parameters = pair.Value.Parameters,
                 transform = new
                 {
                     position = new[] { pair.Value.Transform.Position.X, pair.Value.Transform.Position.Y, pair.Value.Transform.Position.Z },
