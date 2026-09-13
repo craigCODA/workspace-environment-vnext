@@ -2,7 +2,7 @@
 
 Status: M1 runtime foundation implemented; final acceptance is recorded and gated by the dedicated M1 verifier.
 
-Start with the [Live Creative Runtime specification](../../superpowers/specs/2026-09-11-vnext-live-creative-runtime-design.md), then use the [M1 Runtime Foundation implementation plan](../../superpowers/plans/2026-09-11-vnext-m1-runtime-foundation.md). The [M1 acceptance record](m1-acceptance.md) is the evidence boundary for what M1 actually proves. The [baseline and reuse map](baseline-and-reuse.md) distinguishes inspected prototype source, recorded verification, proposed ports, and work that still requires proof.
+Start with the [Live Creative Runtime specification](../../superpowers/specs/2026-09-11-vnext-live-creative-runtime-design.md), then use the [M1 Runtime Foundation implementation plan](../../superpowers/plans/2026-09-11-vnext-m1-runtime-foundation.md). The [approved product sequence](product-roadmap.md) is the owner-corrected order of remaining work (void/fly → Coda orchestration → package lifecycle → open-ended creation). The [M1 acceptance record](m1-acceptance.md) is the evidence boundary for what M1 actually proves. The [baseline and reuse map](baseline-and-reuse.md) distinguishes inspected prototype source, recorded verification, proposed ports, and work that still requires proof.
 
 ## Repository checkpoint
 

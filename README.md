@@ -6,10 +6,12 @@ The defining product goal is live authoring: while Workspace is running, the use
 
 ## Current status
 
-The vNext architecture is approved and the M1 runtime-foundation implementation plan is ready. M1 application implementation has not started in this repository yet.
+M1 runtime foundation is implemented. M2A is in progress on `m2/spatial-workspace-shell` (Electron shell + live generic Windows surfaces). The furnished room is a checkpoint, not the product destination.
 
 Canonical documents:
 
+- [Agent pickup](AGENTS.md)
+- [Approved product sequence](docs/architecture/vnext/product-roadmap.md)
 - [vNext architecture overview](docs/architecture/vnext/README.md)
 - [Live Creative Runtime specification](docs/superpowers/specs/2026-09-11-vnext-live-creative-runtime-design.md)
 - [M1 Runtime Foundation implementation plan](docs/superpowers/plans/2026-09-11-vnext-m1-runtime-foundation.md)
