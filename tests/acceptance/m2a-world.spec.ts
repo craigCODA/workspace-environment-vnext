@@ -109,3 +109,16 @@ test('M2A dragging a screen commits one transform and Undo restores its pose', a
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   await expect.poll(async () => (await snapshot(page)).world.entities[screen.id].transform).toEqual(screen.transform);
 });
+
+test('M2A application picker is generic and unbound screens report an explicit state', async ({ page }) => {
+  await open(page);
+  await page.getByRole('button', { name: 'Applications', exact: true }).click();
+  await expect(page.getByTestId('application-picker')).toBeVisible();
+  await expect(page.getByTestId('picker-status')).toContainText(/unavailable|Select a running window/i);
+  const world = (await snapshot(page)).world;
+  const screen = Object.values(world.entities).find((e: any) => e.parameters.kind === 'surface') as any;
+  await expect.poll(async () => (await snapshot(page)).surfaces[screen.id]?.status).toBe('unbound');
+  await page.getByRole('button', { name: 'Objects', exact: true }).click();
+  await page.getByRole('button', { name: 'Application screen', exact: true }).click();
+  await expect(page.getByTestId('surface-status')).toContainText(/window|unbound|connect/i);
+});

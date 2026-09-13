@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import type { ThreeResourceProjector } from '@workspace/spatial-runtime';
+import { containFit } from './contentMapping.ts';
+import type { SurfacePresentation } from './frameStream.ts';
 import type { WorldEntity, WorldSnapshot } from './WorldSnapshot.ts';
 
 export class WorkspaceScene {
@@ -9,6 +11,7 @@ export class WorkspaceScene {
   readonly renderer: THREE.WebGLRenderer;
   readonly canvas = document.createElement('canvas');
   readonly screens = new Map<string, THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>();
+  readonly live = new Map<string, THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>();
   readonly #room = new THREE.Group();
   readonly #owned = new Map<string, THREE.Group>();
   readonly #resize: ResizeObserver;
@@ -46,7 +49,7 @@ export class WorkspaceScene {
     const room = Object.values(world.entities).find(e => e.parameters.kind === 'room');
     if (room) this.#makeRoom(room);
     for (const [id, object] of this.#owned) {
-      if (!world.entities[id]) { object.removeFromParent(); disposeTree(object); this.#owned.delete(id); this.screens.delete(id); }
+      if (!world.entities[id]) { object.removeFromParent(); disposeTree(object); this.#owned.delete(id); this.screens.delete(id); this.live.delete(id); }
     }
     for (const entity of Object.values(world.entities)) {
       if (entity.parameters.kind === 'room') continue;
@@ -92,12 +95,66 @@ export class WorkspaceScene {
     this.#selection.geometry.dispose(); (this.#selection.material as THREE.Material).dispose();
     this.renderer.dispose(); this.canvas.remove();
   }
+  applySurfaceFrame(entityId: string, image: unknown, width: number, height: number): void {
+    const face = this.screens.get(entityId); const live = this.live.get(entityId);
+    if (!face || !live || width < 1 || height < 1) return;
+    const material = live.material;
+    if (material.map) material.map.dispose();
+    const texture = new THREE.Texture();
+    texture.image = image as TexImageSource;
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.flipY = false;
+    texture.needsUpdate = true;
+    material.map = texture; material.color.set(0xffffff); material.needsUpdate = true;
+    const fit = containFit(face.scale.x / face.scale.y, width / height);
+    live.scale.set(Math.max(fit.u1 - fit.u0, 0.01), Math.max(fit.v1 - fit.v0, 0.01), 1);
+    live.position.set((fit.u0 + fit.u1) / 2 - 0.5, (fit.v0 + fit.v1) / 2 - 0.5, 0.002);
+    live.visible = true; live.userData.surfaceStatus = 'live';
+    if (face.material.map) { face.material.map.dispose(); face.material.map = null; }
+    face.material.color.set(0x111111); face.material.needsUpdate = true; face.userData.surfaceStatus = 'live';
+  }
+  showSurfaceStatus(entityId: string, status: SurfacePresentation): void {
+    const face = this.screens.get(entityId); const live = this.live.get(entityId);
+    if (!face || face.userData.surfaceStatus === status) return;
+    face.userData.surfaceStatus = status;
+    if (status === 'live') {
+      if (face.material.map) { face.material.map.dispose(); face.material.map = null; }
+      face.material.color.set(0x111111); face.material.needsUpdate = true; return;
+    }
+    if (live) {
+      live.visible = false;
+      if (live.material.map) { live.material.map.dispose(); live.material.map = null; live.material.needsUpdate = true; }
+    }
+    if (face.material.map) face.material.map.dispose();
+    face.material.map = statusTexture(status); face.material.color.set(0xffffff); face.material.needsUpdate = true;
+  }
+  disposeSurfaceMedia(entityId: string): void {
+    const live = this.live.get(entityId);
+    if (live) {
+      live.visible = false;
+      if (live.material.map) { live.material.map.dispose(); live.material.map = null; live.material.needsUpdate = true; }
+    }
+    const face = this.screens.get(entityId);
+    if (face) {
+      if (face.material.map) face.material.map.dispose();
+      face.material.map = statusTexture('unbound'); face.material.color.set(0xffffff); face.material.needsUpdate = true;
+      face.userData.surfaceStatus = 'unbound';
+    }
+  }
+  liveHit(hit: THREE.Intersection): { entityId: string; x: number; y: number } | null {
+    if (!hit.object.visible || hit.object.name !== 'm2a-screen-live' || !hit.uv) return null;
+    const entityId = hit.object.userData.entityId;
+    if (typeof entityId !== 'string') return null;
+    return { entityId, x: hit.uv.x, y: 1 - hit.uv.y };
+  }
   #makeScreen(entity: WorldEntity): THREE.Group {
     const group = new THREE.Group(); group.name = 'm2a-screen';
     const body = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0x1d2936, roughness: 0.55 }));
     const face = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: screenPlaceholder(entity.name) }));
-    face.name = 'm2a-screen-content'; face.position.z = 0.515; face.scale.set(0.94, 0.9, 1);
-    this.screens.set(entity.id, face); group.add(body, face); return group;
+    face.name = 'm2a-screen-content'; face.position.z = 0.515; face.scale.set(0.94, 0.9, 1); face.userData.entityId = entity.id;
+    const live = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0x111111 }));
+    live.name = 'm2a-screen-live'; live.position.z = 0.002; live.visible = false; live.userData.entityId = entity.id;
+    face.add(live); this.screens.set(entity.id, face); this.live.set(entity.id, live); group.add(body, face); return group;
   }
   #makeRoom(entity: WorldEntity): void {
     const key = JSON.stringify([entity.transform, entity.parameters.dimensions]);
@@ -125,14 +182,29 @@ export class WorkspaceScene {
   }
 }
 export function screenPlaceholder(title: string): THREE.CanvasTexture {
+  return statusTexture('unbound', title);
+}
+export function statusTexture(status: SurfacePresentation, title = 'Application screen'): THREE.CanvasTexture {
   const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 576;
   const ctx = canvas.getContext('2d'); if (!ctx) throw new Error('Screen labels require a canvas context.');
   ctx.fillStyle = '#17232d'; ctx.fillRect(0, 0, 1024, 576);
   ctx.fillStyle = '#6dd8c3'; ctx.font = '24px sans-serif'; ctx.fillText('WORKSPACE / APPLICATION SURFACE', 58, 78);
   ctx.fillStyle = '#f2f6f7'; ctx.font = '40px sans-serif'; ctx.fillText(title.slice(0, 38), 58, 238);
-  ctx.fillStyle = '#aebfc8'; ctx.font = '26px sans-serif'; ctx.fillText('Choose a running Windows window to connect.', 58, 300);
+  ctx.fillStyle = '#aebfc8'; ctx.font = '26px sans-serif'; ctx.fillText(statusMessage(status), 58, 300);
   ctx.font = '20px sans-serif'; ctx.fillText('Saved placement. Live applications. Your computer.', 58, 494);
   const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; return texture;
+}
+export function statusMessage(status: SurfacePresentation): string {
+  switch (status) {
+    case 'unbound': return 'Choose a running Windows window to connect.';
+    case 'connecting': return 'Connecting to the selected window.';
+    case 'waiting': return 'Waiting for a captured frame.';
+    case 'live': return 'Live Windows capture.';
+    case 'minimized': return 'The window is minimized, so capture is paused.';
+    case 'missing': return 'The saved window is missing or ambiguous.';
+    case 'protected': return 'This window blocks capture.';
+    default: return 'Capture is unavailable on this host.';
+  }
 }
 function disposeTree(root: THREE.Object3D): void {
   root.traverse(object => {
