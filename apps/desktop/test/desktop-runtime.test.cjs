@@ -155,14 +155,20 @@ test('desktop static server is loopback-only and permits only its selected host 
   assert.equal(page.body, '<main>M2A</main>');
   assert.match(page.headers['content-security-policy'], /ws:\/\/127\.0\.0\.1:49222/);
   assert.match(page.headers['content-security-policy'], /http:\/\/127\.0\.0\.1:49222/);
+  assert.match(page.headers['content-security-policy'], /script-src[^;]*'wasm-unsafe-eval'/);
+  assert.match(page.headers['content-security-policy'], /script-src[^;]*'unsafe-eval'/);
+
+  const moduleScript = await requestHttp(`${server.origin}/assets/app.js`, { origin: server.origin });
+  assert.equal(moduleScript.statusCode, 200);
+  assert.equal(moduleScript.headers['access-control-allow-origin'], server.origin);
 
   const traversal = await requestHttp(`${server.origin}/%2e%2e%2fpackage.json`);
   assert.equal(traversal.statusCode, 403);
 });
 
-function requestHttp(url) {
+function requestHttp(url, { origin } = {}) {
   return new Promise((resolve, reject) => {
-    const req = http.get(url, response => {
+    const req = http.get(url, { headers: origin ? { Origin: origin } : {} }, response => {
       const chunks = [];
       response.on('data', chunk => chunks.push(chunk));
       response.on('end', () => resolve({

@@ -45,10 +45,10 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $unpacked = 'dist/win-unpacked/Workspace Environment.exe'
-          $host = 'dist/win-unpacked/resources/host/Workspace.Host.Windows.exe'
+          $hostExe = 'dist/win-unpacked/resources/host/Workspace.Host.Windows.exe'
           $workspace = 'dist/win-unpacked/resources/spatial/workspace.html'
           if (-not (Test-Path $unpacked)) { throw "Missing $unpacked" }
-          if (-not (Test-Path $host)) { throw "Missing $host" }
+          if (-not (Test-Path $hostExe)) { throw "Missing $hostExe" }
           if (-not (Test-Path $workspace)) { throw "Missing $workspace" }
           $installers = @(Get-ChildItem dist -File -Filter 'Workspace Environment Setup *.exe')
           if ($installers.Count -lt 1) { throw 'NSIS setup executable was not produced.' }

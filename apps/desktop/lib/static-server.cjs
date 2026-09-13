@@ -25,7 +25,7 @@ async function startStaticServer(rootDirectory, { hostPort }) {
   if (!info.isDirectory()) throw new Error(`Renderer root is not a directory: ${root}`);
   const csp = [
     "default-src 'self'",
-    "script-src 'self'",
+    "script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
     `connect-src 'self' http://127.0.0.1:${hostPort} ws://127.0.0.1:${hostPort}`,
@@ -37,7 +37,10 @@ async function startStaticServer(rootDirectory, { hostPort }) {
   ].join('; ');
 
   const server = http.createServer((request, response) => {
-    void handleRequest(root, csp, request, response).catch(() => {
+    void handleRequest(root, csp, request, response, () => {
+      const address = server.address();
+      return address && typeof address !== 'string' ? `http://127.0.0.1:${address.port}` : null;
+    }).catch(() => {
       if (!response.headersSent) sendText(response, 500, 'Internal server error');
       else response.destroy();
     });
@@ -63,8 +66,8 @@ async function startStaticServer(rootDirectory, { hostPort }) {
   };
 }
 
-async function handleRequest(root, csp, request, response) {
-  setSecurityHeaders(response, csp);
+async function handleRequest(root, csp, request, response, originFor) {
+  setSecurityHeaders(response, csp, request, originFor);
   let pathname;
   try {
     const rawPath = (request.url ?? '/').split('?', 1)[0];
@@ -110,12 +113,18 @@ async function isFile(candidate) {
   }
 }
 
-function setSecurityHeaders(response, csp) {
+function setSecurityHeaders(response, csp, request, originFor) {
   response.setHeader('Content-Security-Policy', csp);
   response.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   response.setHeader('X-Content-Type-Options', 'nosniff');
   response.setHeader('Referrer-Policy', 'no-referrer');
   response.setHeader('Cache-Control', 'no-store');
+  const allowedOrigin = originFor?.();
+  const requestOrigin = request?.headers?.origin;
+  if (allowedOrigin && requestOrigin === allowedOrigin) {
+    response.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+    response.setHeader('Vary', 'Origin');
+  }
 }
 
 function sendText(response, statusCode, body) {

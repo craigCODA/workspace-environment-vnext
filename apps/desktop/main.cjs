@@ -111,6 +111,12 @@ async function createMainWindow() {
   window.webContents.on('will-navigate', (event, targetUrl) => {
     if (!isAllowedNavigation(targetUrl, rendererOrigin)) event.preventDefault();
   });
+  window.webContents.on('console-message', (_event, level, message) => {
+    log(`[renderer:${['verbose', 'info', 'warning', 'error'][level] ?? level}] ${message}`);
+  });
+  window.webContents.on('did-fail-load', (_event, code, description, validatedURL) => {
+    log(`Renderer failed to load (${code} ${description}): ${validatedURL}`);
+  });
   window.webContents.on('render-process-gone', (_event, details) => {
     log(`Renderer process exited (${details.reason}, code ${details.exitCode}).`);
     if (isQuitting || !workspaceUrl) return;

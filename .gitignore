@@ -1,5 +1,7 @@
 .worktrees/
 .desktop-build/
+.m2a-build/
+LOCAL-HANDOFF.md
 node_modules/
 **/dist/
 **/bin/

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
-import { createElectronBuilderInvocation } from './m2a-build-command.mjs';
+import { createElectronBuilderInvocation, createM2aWindowsPayloadPaths, isM2aWindowsInstallerName } from './m2a-build-command.mjs';
 
 const require = createRequire(import.meta.url);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -17,12 +17,15 @@ const builderCliPath = path.join(builderPackage, 'out', 'cli', 'cli.js');
 const invocation = createElectronBuilderInvocation({ nodeExecutable: process.execPath, builderCliPath });
 run(invocation.executable, invocation.args);
 
-const unpackedExe = path.join(repoRoot, 'dist', 'win-unpacked', 'Workspace Environment.exe');
-if (!existsSync(unpackedExe)) throw new Error(`win-unpacked executable is missing: ${unpackedExe}`);
-const installers = readdirSync(path.join(repoRoot, 'dist')).filter(name => /^Workspace Environment Setup .+\.exe$/i.test(name));
+const distRoot = path.join(repoRoot, 'dist');
+const payload = createM2aWindowsPayloadPaths(distRoot);
+if (!existsSync(payload.unpackedExe)) throw new Error(`win-unpacked executable is missing: ${payload.unpackedExe}`);
+if (!existsSync(payload.hostExe)) throw new Error(`bundled vNext host is missing: ${payload.hostExe}`);
+if (!existsSync(payload.workspaceHtml)) throw new Error(`bundled spatial client is missing: ${payload.workspaceHtml}`);
+const installers = readdirSync(distRoot).filter(name => isM2aWindowsInstallerName(name));
 if (installers.length === 0) throw new Error('NSIS setup executable was not produced.');
-console.log(`M2A_WIN_UNPACKED=${unpackedExe}`);
-for (const installer of installers) console.log(`M2A_WIN_INSTALLER=${path.join(repoRoot, 'dist', installer)}`);
+console.log(`M2A_WIN_UNPACKED=${payload.unpackedExe}`);
+for (const installer of installers) console.log(`M2A_WIN_INSTALLER=${path.join(distRoot, installer)}`);
 
 function run(executable, args) {
   const result = spawnSync(executable, args, { cwd: repoRoot, env: process.env, stdio: 'inherit', windowsHide: true });
